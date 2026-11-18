@@ -228,6 +228,24 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _usernameMeta = const VerificationMeta('username');
+  @override
+  late final GeneratedColumn<String> username = GeneratedColumn<String>(
+    'username',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _avatarPathMeta = const VerificationMeta('avatarPath');
+  @override
+  late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
+    'avatar_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     userId,
@@ -252,6 +270,8 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     consentedAt,
     createdAt,
     updatedAt,
+    username,
+    avatarPath,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -391,6 +411,18 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('username')) {
+      context.handle(
+        _usernameMeta,
+        username.isAcceptableOrUnknown(data['username']!, _usernameMeta),
+      );
+    }
+    if (data.containsKey('avatar_path')) {
+      context.handle(
+        _avatarPathMeta,
+        avatarPath.isAcceptableOrUnknown(data['avatar_path']!, _avatarPathMeta),
+      );
+    }
     return context;
   }
 
@@ -482,6 +514,14 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
         DriftSqlType.string,
         data['${effectivePrefix}updated_at'],
       )!,
+      username: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}username'],
+      ),
+      avatarPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_path'],
+      ),
     );
   }
 
@@ -514,6 +554,10 @@ class Profile extends DataClass implements Insertable<Profile> {
   final String? consentedAt;
   final String createdAt;
   final String updatedAt;
+
+  /// Sunucuda sütun düzeyinde yetkili (RPC ile yazılır); normal güncellemeyle gönderilmez.
+  final String? username;
+  final String? avatarPath;
   const Profile({
     required this.userId,
     this.displayName,
@@ -537,6 +581,8 @@ class Profile extends DataClass implements Insertable<Profile> {
     this.consentedAt,
     required this.createdAt,
     required this.updatedAt,
+    this.username,
+    this.avatarPath,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -581,6 +627,12 @@ class Profile extends DataClass implements Insertable<Profile> {
     }
     map['created_at'] = Variable<String>(createdAt);
     map['updated_at'] = Variable<String>(updatedAt);
+    if (!nullToAbsent || username != null) {
+      map['username'] = Variable<String>(username);
+    }
+    if (!nullToAbsent || avatarPath != null) {
+      map['avatar_path'] = Variable<String>(avatarPath);
+    }
     return map;
   }
 
@@ -612,6 +664,8 @@ class Profile extends DataClass implements Insertable<Profile> {
       consentedAt: consentedAt == null && nullToAbsent ? const Value.absent() : Value(consentedAt),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      username: username == null && nullToAbsent ? const Value.absent() : Value(username),
+      avatarPath: avatarPath == null && nullToAbsent ? const Value.absent() : Value(avatarPath),
     );
   }
 
@@ -640,6 +694,8 @@ class Profile extends DataClass implements Insertable<Profile> {
       consentedAt: serializer.fromJson<String?>(json['consentedAt']),
       createdAt: serializer.fromJson<String>(json['createdAt']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
+      username: serializer.fromJson<String?>(json['username']),
+      avatarPath: serializer.fromJson<String?>(json['avatarPath']),
     );
   }
   @override
@@ -668,6 +724,8 @@ class Profile extends DataClass implements Insertable<Profile> {
       'consentedAt': serializer.toJson<String?>(consentedAt),
       'createdAt': serializer.toJson<String>(createdAt),
       'updatedAt': serializer.toJson<String>(updatedAt),
+      'username': serializer.toJson<String?>(username),
+      'avatarPath': serializer.toJson<String?>(avatarPath),
     };
   }
 
@@ -694,6 +752,8 @@ class Profile extends DataClass implements Insertable<Profile> {
     Value<String?> consentedAt = const Value.absent(),
     String? createdAt,
     String? updatedAt,
+    Value<String?> username = const Value.absent(),
+    Value<String?> avatarPath = const Value.absent(),
   }) => Profile(
     userId: userId ?? this.userId,
     displayName: displayName.present ? displayName.value : this.displayName,
@@ -717,6 +777,8 @@ class Profile extends DataClass implements Insertable<Profile> {
     consentedAt: consentedAt.present ? consentedAt.value : this.consentedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    username: username.present ? username.value : this.username,
+    avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
   );
   Profile copyWithCompanion(ProfilesCompanion data) {
     return Profile(
@@ -748,6 +810,8 @@ class Profile extends DataClass implements Insertable<Profile> {
       consentedAt: data.consentedAt.present ? data.consentedAt.value : this.consentedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      username: data.username.present ? data.username.value : this.username,
+      avatarPath: data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
     );
   }
 
@@ -775,7 +839,9 @@ class Profile extends DataClass implements Insertable<Profile> {
           ..write('onboardingCompleted: $onboardingCompleted, ')
           ..write('consentedAt: $consentedAt, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('username: $username, ')
+          ..write('avatarPath: $avatarPath')
           ..write(')'))
         .toString();
   }
@@ -804,6 +870,8 @@ class Profile extends DataClass implements Insertable<Profile> {
     consentedAt,
     createdAt,
     updatedAt,
+    username,
+    avatarPath,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -830,7 +898,9 @@ class Profile extends DataClass implements Insertable<Profile> {
           other.onboardingCompleted == this.onboardingCompleted &&
           other.consentedAt == this.consentedAt &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.username == this.username &&
+          other.avatarPath == this.avatarPath);
 }
 
 class ProfilesCompanion extends UpdateCompanion<Profile> {
@@ -856,6 +926,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
   final Value<String?> consentedAt;
   final Value<String> createdAt;
   final Value<String> updatedAt;
+  final Value<String?> username;
+  final Value<String?> avatarPath;
   final Value<int> rowid;
   const ProfilesCompanion({
     this.userId = const Value.absent(),
@@ -880,6 +952,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.consentedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.username = const Value.absent(),
+    this.avatarPath = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProfilesCompanion.insert({
@@ -905,6 +979,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.consentedAt = const Value.absent(),
     required String createdAt,
     required String updatedAt,
+    this.username = const Value.absent(),
+    this.avatarPath = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : userId = Value(userId),
        createdAt = Value(createdAt),
@@ -932,6 +1008,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Expression<String>? consentedAt,
     Expression<String>? createdAt,
     Expression<String>? updatedAt,
+    Expression<String>? username,
+    Expression<String>? avatarPath,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -957,6 +1035,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       if (consentedAt != null) 'consented_at': consentedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (username != null) 'username': username,
+      if (avatarPath != null) 'avatar_path': avatarPath,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -984,6 +1064,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Value<String?>? consentedAt,
     Value<String>? createdAt,
     Value<String>? updatedAt,
+    Value<String?>? username,
+    Value<String?>? avatarPath,
     Value<int>? rowid,
   }) {
     return ProfilesCompanion(
@@ -1009,6 +1091,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       consentedAt: consentedAt ?? this.consentedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      username: username ?? this.username,
+      avatarPath: avatarPath ?? this.avatarPath,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1082,6 +1166,12 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<String>(updatedAt.value);
     }
+    if (username.present) {
+      map['username'] = Variable<String>(username.value);
+    }
+    if (avatarPath.present) {
+      map['avatar_path'] = Variable<String>(avatarPath.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1113,6 +1203,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
           ..write('consentedAt: $consentedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('username: $username, ')
+          ..write('avatarPath: $avatarPath, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9314,6 +9406,8 @@ typedef $$ProfilesTableCreateCompanionBuilder = ProfilesCompanion Function({
   Value<String?> consentedAt,
   required String createdAt,
   required String updatedAt,
+  Value<String?> username,
+  Value<String?> avatarPath,
   Value<int> rowid,
 });
 typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
@@ -9339,6 +9433,8 @@ typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
   Value<String?> consentedAt,
   Value<String> createdAt,
   Value<String> updatedAt,
+  Value<String?> username,
+  Value<String?> avatarPath,
   Value<int> rowid,
 });
 
@@ -9421,6 +9517,12 @@ class $$ProfilesTableFilterComposer extends Composer<_$AppDatabase, $ProfilesTab
 
   ColumnFilters<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get username =>
+      $composableBuilder(column: $table.username, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get avatarPath =>
+      $composableBuilder(column: $table.avatarPath, builder: (column) => ColumnFilters(column));
 }
 
 class $$ProfilesTableOrderingComposer extends Composer<_$AppDatabase, $ProfilesTable> {
@@ -9506,6 +9608,12 @@ class $$ProfilesTableOrderingComposer extends Composer<_$AppDatabase, $ProfilesT
 
   ColumnOrderings<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get username =>
+      $composableBuilder(column: $table.username, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get avatarPath =>
+      $composableBuilder(column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ProfilesTableAnnotationComposer extends Composer<_$AppDatabase, $ProfilesTable> {
@@ -9581,6 +9689,12 @@ class $$ProfilesTableAnnotationComposer extends Composer<_$AppDatabase, $Profile
 
   GeneratedColumn<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get username =>
+      $composableBuilder(column: $table.username, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarPath =>
+      $composableBuilder(column: $table.avatarPath, builder: (column) => column);
 }
 
 class $$ProfilesTableTableManager
@@ -9631,6 +9745,8 @@ class $$ProfilesTableTableManager
                 Value<String?> consentedAt = const Value.absent(),
                 Value<String> createdAt = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
+                Value<String?> username = const Value.absent(),
+                Value<String?> avatarPath = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProfilesCompanion(
                 userId: userId,
@@ -9655,6 +9771,8 @@ class $$ProfilesTableTableManager
                 consentedAt: consentedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                username: username,
+                avatarPath: avatarPath,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9681,6 +9799,8 @@ class $$ProfilesTableTableManager
                 Value<String?> consentedAt = const Value.absent(),
                 required String createdAt,
                 required String updatedAt,
+                Value<String?> username = const Value.absent(),
+                Value<String?> avatarPath = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProfilesCompanion.insert(
                 userId: userId,
@@ -9705,6 +9825,8 @@ class $$ProfilesTableTableManager
                 consentedAt: consentedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                username: username,
+                avatarPath: avatarPath,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

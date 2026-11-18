@@ -36,6 +36,10 @@ class Profiles extends Table {
   TextColumn get createdAt => text()();
   TextColumn get updatedAt => text()();
 
+  /// Sunucuda sütun düzeyinde yetkili (RPC ile yazılır); normal güncellemeyle gönderilmez.
+  TextColumn get username => text().nullable()();
+  TextColumn get avatarPath => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {userId};
 }

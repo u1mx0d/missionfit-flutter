@@ -68,6 +68,8 @@ class Profile {
     this.consentedAt,
     required this.createdAt,
     required this.updatedAt,
+    this.username,
+    this.avatarPath,
   });
 
   final String userId;
@@ -95,6 +97,10 @@ class Profile {
   final String createdAt;
   final String updatedAt;
 
+  /// Sunucu tarafından yönetilir (RPC); [copyWith]'e ve outbox yüküne girmez.
+  final String? username;
+  final String? avatarPath;
+
   factory Profile.fromRow(d.Profile r) {
     final ns = _tryDecode(r.notificationSettings);
     return Profile(
@@ -120,6 +126,8 @@ class Profile {
       consentedAt: r.consentedAt,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
+      username: r.username,
+      avatarPath: r.avatarPath,
     );
   }
 
@@ -148,6 +156,8 @@ class Profile {
     'consented_at': consentedAt,
     'created_at': createdAt,
     'updated_at': updatedAt,
+    'username': username,
+    'avatar_path': avatarPath,
   };
 
   /// Sunucu satırı (snake_case, jsonb -> Map, boolean -> bool) -> yerel profil. Tolerant.
@@ -185,10 +195,15 @@ class Profile {
       consentedAt: str('consented_at'),
       createdAt: str('created_at') ?? now,
       updatedAt: str('updated_at') ?? now,
+      username: str('username'),
+      avatarPath: str('avatar_path'),
     );
   }
 
-  Map<String, Object?> toPayload() => toRow()..remove('updated_at');
+  Map<String, Object?> toPayload() => toRow()
+    ..remove('updated_at')
+    ..remove('username')
+    ..remove('avatar_path');
 
   ProfilesCompanion toCompanion() => ProfilesCompanion(
     userId: Value(userId),
@@ -213,6 +228,8 @@ class Profile {
     consentedAt: Value(consentedAt),
     createdAt: Value(createdAt),
     updatedAt: Value(updatedAt),
+    username: Value(username),
+    avatarPath: Value(avatarPath),
   );
 
   Profile copyWith({
@@ -259,6 +276,8 @@ class Profile {
     consentedAt: identical(consentedAt, _keep) ? this.consentedAt : consentedAt as String?,
     createdAt: createdAt,
     updatedAt: updatedAt,
+    username: username,
+    avatarPath: avatarPath,
   );
 }
 

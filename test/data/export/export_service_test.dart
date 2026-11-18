@@ -97,6 +97,7 @@ void main() {
             createdAt: 'x',
             updatedAt: 'x',
             calorieTargetIsManual: const Value(true),
+            username: const Value('alp'),
           ),
         );
     final result = await service.exportJson();
@@ -105,6 +106,7 @@ void main() {
     final profile = ((json['tables'] as Map)['profiles'] as List).single as Map;
     expect(profile['user_id'], 'u1');
     expect(profile['calorie_target_is_manual'], true);
+    expect(profile['username'], 'alp');
     expect(profile['notification_settings'], {'enabled': true, 'task_lead_minutes': 10});
     expect((json['tables'] as Map).keys, hasLength(8));
   });

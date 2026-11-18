@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
+import 'package:sqlite3/sqlite3.dart' as sql;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:missionfit/data/db/database.dart';
 
@@ -92,4 +95,42 @@ void main() {
       expect((await db.select(db.foods).get()).length, 1);
     },
   );
+
+  test('v1 veritabanı v2ye göçer, profil satırı korunur', () async {
+    final dir = Directory.systemTemp.createTempSync('mf_mig');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/v1.sqlite');
+    final raw = sql.sqlite3.open(file.path);
+    raw.execute('''
+      CREATE TABLE profiles (
+        user_id TEXT NOT NULL, display_name TEXT NULL, height_cm REAL NULL, weight_kg REAL NULL,
+        birth_year INTEGER NULL, sex TEXT NULL, activity_level TEXT NULL, goal TEXT NULL,
+        calorie_target INTEGER NULL,
+        calorie_target_is_manual INTEGER NOT NULL DEFAULT 0 CHECK (calorie_target_is_manual IN (0, 1)),
+        units TEXT NOT NULL DEFAULT 'kg', week_starts_on TEXT NOT NULL DEFAULT 'monday',
+        timezone TEXT NOT NULL DEFAULT 'Europe/Istanbul', theme TEXT NOT NULL DEFAULT 'system',
+        accent TEXT NOT NULL DEFAULT 'indigo', theme_family TEXT NOT NULL DEFAULT 'canli',
+        accent_color TEXT NOT NULL DEFAULT 'yesil',
+        notification_settings TEXT NOT NULL DEFAULT '{"enabled": true, "task_lead_minutes": 10}',
+        onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK (onboarding_completed IN (0, 1)),
+        consented_at TEXT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id)
+      )''');
+    raw.execute(
+      'INSERT INTO profiles (user_id, display_name, created_at, updated_at) '
+      "VALUES ('u1', 'Ada', 'x', 'x')",
+    );
+    raw.execute('PRAGMA user_version = 1');
+    raw.close();
+
+    final migrated = AppDatabase.forTesting(NativeDatabase(file));
+    addTearDown(migrated.close);
+    final row = await migrated.select(migrated.profiles).getSingle();
+    expect(row.userId, 'u1');
+    expect(row.displayName, 'Ada');
+    expect(row.username, isNull);
+    expect(row.avatarPath, isNull);
+    final cols = await migrated.customSelect('PRAGMA table_info(profiles)').get();
+    expect(cols.map((c) => c.read<String>('name')), contains('avatar_path'));
+  });
 }

@@ -146,4 +146,23 @@ void main() {
     expect(p!.displayName, 'Yeni');
     expect(await outbox.pending(), hasLength(1));
   });
+
+  group('kimlik alanları', () {
+    const base = {'user_id': 'u1', 'username': 'alp', 'avatar_path': 'u1/1.jpg'};
+
+    test('toPayload kullanıcı adı ve avatarı göndermez', () {
+      final p = Profile.fromServer(base)!;
+      expect(p.toPayload().containsKey('username'), isFalse);
+      expect(p.toPayload().containsKey('avatar_path'), isFalse);
+    });
+
+    test('fromServer kullanıcı adı ve avatar yolunu okur', () {
+      final p = Profile.fromServer(base)!;
+      expect(p.username, 'alp');
+      expect(p.avatarPath, 'u1/1.jpg');
+      final row = p.toRow();
+      expect(row['username'], 'alp');
+      expect(row['avatar_path'], 'u1/1.jpg');
+    });
+  });
 }
