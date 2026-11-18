@@ -37,14 +37,14 @@ class WorkoutSummary {
   final int exerciseCount;
 
   @override
-  bool operator ==(Object o) =>
-      o is WorkoutSummary &&
-      o.durationSeconds == durationSeconds &&
-      o.durationCapped == durationCapped &&
-      o.kcal == kcal &&
-      o.volumeKg == volumeKg &&
-      o.setCount == setCount &&
-      o.exerciseCount == exerciseCount;
+  bool operator ==(Object other) =>
+      other is WorkoutSummary &&
+      other.durationSeconds == durationSeconds &&
+      other.durationCapped == durationCapped &&
+      other.kcal == kcal &&
+      other.volumeKg == volumeKg &&
+      other.setCount == setCount &&
+      other.exerciseCount == exerciseCount;
   @override
   int get hashCode =>
       Object.hash(durationSeconds, durationCapped, kcal, volumeKg, setCount, exerciseCount);

@@ -44,7 +44,7 @@ final class FoodCalcOk extends FoodCalcResult {
   const FoodCalcOk(this.values);
   final FoodEntryValues values;
   @override
-  bool operator ==(Object o) => o is FoodCalcOk && o.values == values;
+  bool operator ==(Object other) => other is FoodCalcOk && other.values == values;
   @override
   int get hashCode => values.hashCode;
 }
@@ -53,7 +53,7 @@ final class FoodCalcFailed extends FoodCalcResult {
   const FoodCalcFailed(this.error);
   final FoodCalcError error;
   @override
-  bool operator ==(Object o) => o is FoodCalcFailed && o.error == error;
+  bool operator ==(Object other) => other is FoodCalcFailed && other.error == error;
   @override
   int get hashCode => error.hashCode;
 }

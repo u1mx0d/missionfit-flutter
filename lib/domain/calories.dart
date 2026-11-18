@@ -113,7 +113,8 @@ final class ManualTargetOk extends ManualTargetCheck {
   final int value;
   final bool veryHigh;
   @override
-  bool operator ==(Object o) => o is ManualTargetOk && o.value == value && o.veryHigh == veryHigh;
+  bool operator ==(Object other) =>
+      other is ManualTargetOk && other.value == value && other.veryHigh == veryHigh;
   @override
   int get hashCode => Object.hash(value, veryHigh);
 }
@@ -123,7 +124,8 @@ final class ManualTargetRejected extends ManualTargetCheck {
   final ManualTargetProblem reason;
   final int floor;
   @override
-  bool operator ==(Object o) => o is ManualTargetRejected && o.reason == reason && o.floor == floor;
+  bool operator ==(Object other) =>
+      other is ManualTargetRejected && other.reason == reason && other.floor == floor;
   @override
   int get hashCode => Object.hash(reason, floor);
 }

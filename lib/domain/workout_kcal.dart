@@ -27,12 +27,12 @@ final class KcalOk extends KcalResult {
   final bool durationCapped;
 
   @override
-  bool operator ==(Object o) =>
-      o is KcalOk &&
-      o.kcal == kcal &&
-      o.averageMet == averageMet &&
-      o.durationSeconds == durationSeconds &&
-      o.durationCapped == durationCapped;
+  bool operator ==(Object other) =>
+      other is KcalOk &&
+      other.kcal == kcal &&
+      other.averageMet == averageMet &&
+      other.durationSeconds == durationSeconds &&
+      other.durationCapped == durationCapped;
   @override
   int get hashCode => Object.hash(kcal, averageMet, durationSeconds, durationCapped);
 }
@@ -40,7 +40,7 @@ final class KcalOk extends KcalResult {
 final class KcalMissingWeight extends KcalResult {
   const KcalMissingWeight();
   @override
-  bool operator ==(Object o) => o is KcalMissingWeight;
+  bool operator ==(Object other) => other is KcalMissingWeight;
   @override
   int get hashCode => 0;
 }

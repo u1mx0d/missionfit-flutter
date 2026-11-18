@@ -4,7 +4,6 @@
 /// (≥ adequateSets, varsayılan 4). Yalnızca penceredeki local_date'e sahip setler sayılır.
 library;
 
-import 'dates.dart';
 import 'week.dart';
 
 enum BodyRegion { chest, back, shoulders, arms, core, legs }
