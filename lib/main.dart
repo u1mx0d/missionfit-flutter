@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
+import 'app/profile_controller.dart';
 import 'app/session_controller.dart';
 import 'data/auth/secure_local_storage.dart';
 import 'env.dart';
@@ -20,7 +22,14 @@ Future<void> main() async {
       localStorage: SecureLocalStorage(),
     ),
   );
-  runApp(const ProviderScope(child: MissionFitApp()));
+  // Yerel diskten okunur; ağ beklenmez, ilk karede kayıtlı tema kullanılır.
+  final prefs = await SharedPreferences.getInstance();
+  runApp(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      child: const MissionFitApp(),
+    ),
+  );
 }
 
 class MissionFitApp extends ConsumerStatefulWidget {
