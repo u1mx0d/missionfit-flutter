@@ -1,0 +1,29 @@
+# Beyin fırtınası taslakları
+.superpowers/
+
+# Ortam değişkenleri (Supabase adresi/anahtarı)
+env.json
+
+# Yedekler
+backups/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iml
+.vscode/
