@@ -17,6 +17,7 @@ import '../onboarding/consent_step.dart' show showKvkkDialog;
 import '../onboarding/goal_step.dart' show activityOptions, goalOptions;
 import '../onboarding/kvkk_text.dart';
 import '../theme/mf_theme.dart';
+import 'profile_header.dart';
 import 'profile_widgets.dart';
 
 String _activityLabel(ActivityLevel a) => activityOptions.firstWhere((o) => o.$1 == a).$2;
@@ -166,19 +167,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with WidgetsBindi
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
           children: [
-            Semantics(
-              header: true,
-              child: Text(
-                'Profil',
-                style: Theme.of(context).textTheme.headlineMedium
-                    ?.copyWith(fontFamily: t.displayFont, fontWeight: FontWeight.w700),
-              ),
-            ),
-            if (email != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(email, style: TextStyle(color: t.textMuted)),
-              ),
+            const ProfileHeader(),
             ProfileSection(
               title: 'Vücut ve hedef',
               children: [
@@ -320,6 +309,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with WidgetsBindi
             ProfileSection(
               title: 'Hesap',
               children: [
+                if (email != null)
+                  SettingsRow(icon: Icons.mail_outline, title: 'E-posta', subtitle: email),
                 if (hasPassword)
                   SettingsRow(
                     icon: Icons.key,
