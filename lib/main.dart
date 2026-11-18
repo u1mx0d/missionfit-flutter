@@ -7,7 +7,11 @@ import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'app/profile_controller.dart';
 import 'app/session_controller.dart';
 import 'data/auth/secure_local_storage.dart';
+import 'app/theme_controller.dart';
 import 'env.dart';
+import 'ui/router.dart';
+import 'ui/theme/app_theme.dart';
+import 'ui/theme/mf_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,10 +62,19 @@ class _MissionFitAppState extends ConsumerState<MissionFitApp> {
   @override
   Widget build(BuildContext context) {
     ref.watch(sessionControllerProvider);
-    return const MaterialApp(
+    final sel = ref.watch(themeControllerProvider);
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
       title: 'MissionFit',
       debugShowCheckedModeBanner: false,
-      home: Scaffold(body: Center(child: Text('MissionFit'))),
+      routerConfig: router,
+      theme: buildThemeData(MfTheme.build(sel.family, Brightness.light, sel.accent)),
+      darkTheme: buildThemeData(MfTheme.build(sel.family, Brightness.dark, sel.accent)),
+      themeMode: switch (sel.mode) {
+        ThemeModeChoice.light => ThemeMode.light,
+        ThemeModeChoice.dark => ThemeMode.dark,
+        ThemeModeChoice.system => ThemeMode.system,
+      },
     );
   }
 }
