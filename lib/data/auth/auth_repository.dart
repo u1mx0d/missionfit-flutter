@@ -67,8 +67,18 @@ class AuthRepository {
   final GoogleCredentialSource google;
   final bool googleEnabled;
 
-  Future<void> signUp(String email, String password) =>
-      _run(AuthAction.signUp, () => _auth.signUp(email: email, password: password));
+  /// Supabase, e-posta zaten kayıtlıysa güvenlik gereği hata vermez ve e-posta göndermez;
+  /// yanıttaki kullanıcının kimlik listesi boş gelir. Bu durumda kullanıcıya açıkça söyleriz.
+  Future<void> signUp(String email, String password) => _run(AuthAction.signUp, () async {
+    final res = await _auth.signUp(email: email, password: password);
+    final identities = res.user?.identities;
+    if (res.user != null && identities != null && identities.isEmpty) {
+      throw AuthFailure(
+        authErrorMessage(const AuthErrorInfo(code: 'user_already_exists'), AuthAction.signUp),
+      );
+    }
+    return res;
+  });
 
   Future<void> verifySignUpCode(String email, String code) => _run(
     AuthAction.verifyCode,

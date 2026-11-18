@@ -78,6 +78,29 @@ void main() {
     );
   });
 
+  test('signUp: e-posta zaten kayıtlıysa (identities boş) Türkçe AuthFailure', () async {
+    when(
+      () => auth.signUp(
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer((_) async => AuthResponse(user: _user([])));
+    await expectLater(
+      repo().signUp('a@b.co', 'abc12345'),
+      throwsA(isA<AuthFailure>().having((f) => f.message, 'message', contains('zaten bir hesap'))),
+    );
+  });
+
+  test('signUp: yeni hesapta (identities dolu) hata yok', () async {
+    when(
+      () => auth.signUp(
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer((_) async => AuthResponse(user: _user(['email'])));
+    await repo().signUp('a@b.co', 'abc12345');
+  });
+
   test('verifySignUpCode OtpType.signup kullanır', () async {
     when(
       () => auth.verifyOTP(
