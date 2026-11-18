@@ -110,6 +110,7 @@ void main() {
   });
 
   test('SessionController: çıkışta yerel veri temizlenir', () async {
+    store.map[SecureLocalStorage.lastUserIdKey] = 'u';
     await emit(_session('u'));
     await emit(null);
     verify(() => db.clearAllUserData()).called(1);
@@ -169,6 +170,7 @@ void main() {
   test(
     'çıkış sırasında süren eşitleme bitince veri temizlenir; sonraki farklı kullanıcı siler',
     () async {
+      store.map[SecureLocalStorage.lastUserIdKey] = 'a';
       await emit(_session('a'));
       final gate = Completer<SyncResult>();
       when(() => sync.syncNow()).thenAnswer((_) => gate.future);
@@ -192,5 +194,11 @@ void main() {
     verifyNever(() => sync.syncNow());
     expect(c.read(sessionControllerProvider).userId, isNull);
     expect(c.read(sessionControllerProvider).lastError, isNotNull);
+  });
+
+  test('last_user_id yoksa (null) giriş yine yerel veriyi temizler', () async {
+    await emit(_session('b'));
+    verifyInOrder([() => db.clearAllUserData(), () => sync.syncNow()]);
+    expect(store.map[SecureLocalStorage.lastUserIdKey], 'b');
   });
 }

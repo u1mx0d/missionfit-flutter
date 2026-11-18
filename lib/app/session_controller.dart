@@ -26,6 +26,9 @@ class SessionState {
 const Object _keep = Object();
 
 /// Çıkışta çalışan kancalar (örn. bildirimleri iptal etme; sonraki görevlerde eklenir).
+///
+/// Kancalar denetleyicinin sırası içinde çalışır; `handleSession`/`onResumed` veya sıraya
+/// girip bekleyen başka bir şey çağırmamalıdır (kilitlenme).
 final signedOutHooksProvider = Provider<List<Future<void> Function()>>((ref) => []);
 
 /// Periyodik eşitleme zamanlayıcısı üreticisi; testlerde değiştirilir.
@@ -80,7 +83,9 @@ class SessionController extends Notifier<SessionState> {
       final store = ref.read(keyValueStoreProvider);
       final db = ref.read(databaseProvider);
       final last = await store.read(SecureLocalStorage.lastUserIdKey);
-      if (last != null && last != userId) await db.clearAllUserData();
+      // last == null da temizler: keystore sıfırlanırsa (resetOnError) önceki kullanıcının
+      // kaydı silinmiş olabilir. Taze kurulumda veritabanı zaten boştur, ek maliyet yoktur.
+      if (last != userId) await db.clearAllUserData();
       await store.write(SecureLocalStorage.lastUserIdKey, userId);
     } catch (e, st) {
       // Güvenli kapanış: kullanıcı doğrulanamadı, eşitleme yok; eldeki yerel veri silinir.
