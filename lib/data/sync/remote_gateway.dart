@@ -45,6 +45,9 @@ abstract interface class RemoteGateway {
   /// `deletions` kayıtları: `id > since` (identity), `id` artan sırada.
   Future<List<Map<String, Object?>>> fetchDeletions({required String? since, required int limit});
 
+  /// Tek satır (kimlik sütunuyla; `profiles` için user_id). Sunucuda yoksa null.
+  Future<Map<String, Object?>?> fetchById(String table, String id);
+
   /// Katalog tablosunun tamamı.
   Future<List<Map<String, Object?>>> fetchCatalog(String table);
 }
@@ -116,6 +119,10 @@ class SupabaseRemoteGateway implements RemoteGateway {
     if (since != null) query = query.gt('id', int.parse(since));
     return await query.order('id', ascending: true).limit(limit);
   }
+
+  @override
+  Future<Map<String, Object?>?> fetchById(String table, String id) =>
+      _client.from(table).select().eq(idColumn(table), id).maybeSingle();
 
   @override
   Future<List<Map<String, Object?>>> fetchCatalog(String table) async {

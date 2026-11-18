@@ -19,6 +19,9 @@ class FakeRemoteGateway implements RemoteGateway {
   /// Bir gönderim için hata döndürürse o hata fırlatılır (ör. `{'code': '42501'}`).
   Object? Function(String table, String id)? failSend;
 
+  /// Verilirse `fetchById` bu hatayı fırlatır.
+  Object? failFetchById;
+
   int _tick = 0;
   int _deletionId = 0;
 
@@ -90,6 +93,13 @@ class FakeRemoteGateway implements RemoteGateway {
   }) async {
     final after = since == null ? 0 : int.parse(since);
     return deletions.where((d) => (d['id']! as int) > after).take(limit).toList();
+  }
+
+  @override
+  Future<Map<String, Object?>?> fetchById(String table, String id) async {
+    if (failFetchById != null) throw failFetchById!;
+    final row = tables[table]?[id];
+    return row == null ? null : {...row};
   }
 
   @override

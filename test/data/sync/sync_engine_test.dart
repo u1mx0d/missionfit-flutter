@@ -340,4 +340,67 @@ void main() {
       expect((await db.select(db.foods).getSingle()).nameTr, 'Yeşil elma');
     });
   });
+
+  group('bırakılan işlemler', () {
+    Future<void> insertLocal(String id, String title) => db
+        .into(db.tasks)
+        .insert(
+          TasksCompanion.insert(
+            id: id,
+            userId: user,
+            title: title,
+            startDate: '2026-11-18',
+            createdAt: 'x',
+            updatedAt: 'x',
+          ),
+        );
+
+    test('syncNow: kalıcı hata droppedReasons ile döner', () async {
+      remote.failSend = (t, id) => id == uid(1) ? {'code': '23514', 'message': 'check'} : null;
+      remote.put('tasks', serverTask(uid(5)));
+      await outbox.enqueue(upsertOp('o1', 'tasks', localTask(uid(1))));
+      await outbox.enqueue(upsertOp('o2', 'tasks', localTask(uid(2))));
+      final results = await Future.wait([engine.syncNow(), engine.syncNow()]);
+      final r = results.first;
+      expect(identical(results.first, results.last), isTrue);
+      expect(r.pushed, 1);
+      expect(r.dropped, 1);
+      expect(r.droppedReasons.single, contains('23514'));
+      expect(r.pulled, 2); // uid(2) sunucu sürümü + uid(5)
+    });
+
+    test('drop sonrası satır sunucudaki sürüme döner', () async {
+      remote.put('tasks', serverTask(uid(1), title: 'Sunucu'));
+      await insertLocal(uid(1), 'Yerel');
+      await outbox.enqueue(upsertOp('o1', 'tasks', localTask(uid(1))));
+      await engine.pull(); // bekleyen işlem yüzünden atlanır, imleç ilerler
+      expect(await localTaskTitles(), ['Yerel']);
+      remote.failSend = (t, id) => {'code': '23514', 'message': 'check'};
+      final r = await engine.push();
+      expect(r.dropped, 1);
+      expect(await localTaskTitles(), ['Sunucu']);
+      final local = await db.select(db.tasks).getSingle();
+      expect(local.repeatRule, '{"type":"daily"}');
+    });
+
+    test('drop sonrası sunucuda yoksa yerelden silinir', () async {
+      await insertLocal(uid(1), 'Yerel');
+      await outbox.enqueue(upsertOp('o1', 'tasks', localTask(uid(1))));
+      remote.failSend = (t, id) => {'code': '42501', 'message': 'rls'};
+      final r = await engine.push();
+      expect(r.dropped, 1);
+      expect(await db.select(db.tasks).get(), isEmpty);
+    });
+
+    test('drop sonrası yeniden çekme başarısızsa yerel satır kalır ve push hata atmaz', () async {
+      await insertLocal(uid(1), 'Yerel');
+      await outbox.enqueue(upsertOp('o1', 'tasks', localTask(uid(1))));
+      remote.failSend = (t, id) => {'code': '42501', 'message': 'rls'};
+      remote.failFetchById = Exception('SocketException');
+      final r = await engine.push();
+      expect(r.dropped, 1);
+      expect(r.droppedReasons.single, contains('eşitlenemedi'));
+      expect(await localTaskTitles(), ['Yerel']);
+    });
+  });
 }

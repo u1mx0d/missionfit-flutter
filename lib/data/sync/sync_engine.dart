@@ -54,14 +54,17 @@ class SyncEngine {
   /// sqlite'ta metin olarak saklanan jsonb sütunları.
   static const _jsonColumns = {'notification_settings', 'repeat_rule'};
 
-  Future<void>? _running;
+  Future<SyncResult>? _running;
 
   /// Önce gönderir, sonra çeker. Çalışırken gelen çağrı aynı çalışmanın bitmesini bekler.
-  Future<void> syncNow() => _running ??= _syncOnce().whenComplete(() => _running = null);
+  /// Gönderme ve çekme sonuçlarının birleşimini döndürür (bırakılan işlemler
+  /// `droppedReasons`'ta; kullanıcıya bildirilmeli). Eşzamanlı çağıranlar aynı sonucu alır.
+  Future<SyncResult> syncNow() => _running ??= _syncOnce().whenComplete(() => _running = null);
 
-  Future<void> _syncOnce() async {
-    await push();
-    await pull();
+  Future<SyncResult> _syncOnce() async {
+    final result = await push();
+    result.pulled += (await pull()).pulled;
+    return result;
   }
 
   // --- Gönderme --------------------------------------------------------------------------
@@ -97,7 +100,41 @@ class SyncEngine {
   Future<void> _drop(OutboxOp op, SyncResult result, String reason) async {
     await _outbox.remove(op.opId);
     result.dropped++;
-    result.droppedReasons.add('${op.type} ${op.key}: $reason');
+    final note = await _resyncRow(op);
+    result.droppedReasons.add('${op.type} ${op.key}: $reason${note == null ? '' : ' ($note)'}');
+  }
+
+  /// Bırakılan işlemin satırını sunucudaki sürüme döndürür: bekleyen işlem yüzünden pull
+  /// sunucu sürümünü atlamış ve imleci ilerletmiş olabilir. Sunucuda yoksa yerelden silinir.
+  /// Yeniden çekme başarısızsa yerel satır kalır; dönen not nedenine eklenir.
+  Future<String?> _resyncRow(OutboxOp op) async {
+    final colon = op.key.indexOf(':');
+    if (colon < 0) return null;
+    final table = op.key.substring(0, colon);
+    final id = op.key.substring(colon + 1);
+    if (!syncTables.contains(table)) return null;
+    final Map<String, Object?>? row;
+    try {
+      row = await _remote.fetchById(table, id);
+    } catch (e) {
+      return 'yerel satır sunucuyla eşitlenemedi: ${_describe(e)}';
+    }
+    final info = _table(table);
+    await _db.transaction(() async {
+      // Bu arada aynı key'e yeni bir yerel değişiklik geldiyse ona dokunma.
+      if ((await _pendingKeys()).contains(op.key)) return;
+      if (row != null) {
+        await _apply(info, row);
+      } else {
+        await _db.customUpdate(
+          'DELETE FROM "$table" WHERE "${idColumn(table)}" = ?',
+          variables: [Variable<String>(id)],
+          updates: {info},
+          updateKind: UpdateKind.delete,
+        );
+      }
+    });
+    return null;
   }
 
   String _describe(Object e) {

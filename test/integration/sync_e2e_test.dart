@@ -222,6 +222,17 @@ void main() {
       await a.engine().downloadCatalogs();
       expect(await a.db.select(a.db.foods).get(), isNotEmpty);
       expect(await a.db.select(a.db.exercises).get(), isNotEmpty);
+
+      // CHECK ihlali (23514) kalıcıdır: işlem bırakılır, syncNow nedeni döndürür ve yerel
+      // satır sunucudaki sürüme döner (t2 için eski başlık).
+      await a.upsert('tasks', {...t2, 'title': 'x' * 200});
+      final dropped = await a.engine().syncNow();
+      expect(dropped.dropped, 1);
+      expect(dropped.droppedReasons.single, contains('23514'));
+      final t2Local = await (a.db.select(
+        a.db.tasks,
+      )..where((t) => t.id.equals(t2['id']! as String))).getSingle();
+      expect(t2Local.title, 'A görev 2');
     },
     skip: _e2e == '1' ? false : 'E2E=1 verilmedi (yerel Supabase gerekir)',
     timeout: const Timeout(Duration(minutes: 2)),
