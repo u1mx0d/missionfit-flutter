@@ -110,7 +110,8 @@ class MfTheme extends ThemeExtension<MfTheme> {
       // Degrade vurgu renginden türetilir; vurgu değişince zemin de ona uyar.
       gradientTop: p.gradientTop == null
           ? null
-          : Color.lerp(p.background, dark ? accent.darkTone : accent.lightTone, dark ? 0.28 : 0.15),
+          // Açık temada da canlı ton (darkTone) kullanılır; koyu ton beyaz zeminde neredeyse görünmez.
+          : Color.lerp(p.background, accent.darkTone, dark ? 0.28 : 0.32),
       displayFont: mono ? fontSpaceGrotesk : fontInter,
       bodyFont: mono ? fontSpaceGrotesk : fontInter,
       numberFont: mono ? fontDoto : fontInter,

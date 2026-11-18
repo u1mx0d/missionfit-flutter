@@ -59,6 +59,16 @@ void main() {
     expect(MfTheme.build(ThemeFamily.mono, Brightness.dark, AccentColor.mor).gradientTop, isNull);
   });
 
+  test('açık temada degrade beyazdan belirgin şekilde ayrılır', () {
+    for (final a in AccentColor.values.where((a) => a != AccentColor.grafit)) {
+      final g = MfTheme.build(ThemeFamily.canli, Brightness.light, a).gradientTop!;
+      final spread =
+          [g.r, g.g, g.b].reduce((x, y) => x > y ? x : y) -
+          [g.r, g.g, g.b].reduce((x, y) => x < y ? x : y);
+      expect(spread, greaterThan(0.13), reason: a.name);
+    }
+  });
+
   test('lerp geçişte çökmez', () {
     final a = MfTheme.build(ThemeFamily.mono, Brightness.dark, AccentColor.kirmizi);
     final b = MfTheme.build(ThemeFamily.canli, Brightness.light, AccentColor.yesil);
