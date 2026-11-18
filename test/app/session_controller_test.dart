@@ -19,8 +19,15 @@ class MockOutbox extends Mock implements OutboxRepository {}
 
 class MemStore implements KeyValueStore {
   final map = <String, String>{};
+  Completer<void>? readGate;
+  Object? readError;
   @override
-  Future<String?> read(String key) async => map[key];
+  Future<String?> read(String key) async {
+    if (readError != null) throw readError!;
+    await readGate?.future;
+    return map[key];
+  }
+
   @override
   Future<void> write(String key, String value) async => map[key] = value;
   @override
@@ -107,7 +114,7 @@ void main() {
     await emit(null);
     verify(() => db.clearAllUserData()).called(1);
     expect(hookCalls, 1);
-    expect(store.map.containsKey(SecureLocalStorage.lastUserIdKey), isFalse);
+    expect(store.map[SecureLocalStorage.lastUserIdKey], isNot('u'));
   });
 
   test('açılışta oturum yoksa veri silinmez', () async {
@@ -141,5 +148,49 @@ void main() {
     clearInteractions(sync);
     await c.read(sessionControllerProvider.notifier).onResumed();
     verify(() => sync.syncNow()).called(1);
+  });
+
+  test('kullanıcı değişimi sürerken zamanlayıcı/öne gelme yeni kullanıcıyla eşitlemez', () async {
+    store.map[SecureLocalStorage.lastUserIdKey] = 'old';
+    store.readGate = Completer<void>();
+    when(() => outbox.pendingCount()).thenAnswer((_) => Stream.value(3));
+    await emit(_session('new'));
+    final ctrl = c.read(sessionControllerProvider.notifier);
+    unawaited(ctrl.onResumed());
+    tick();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    verifyNever(() => sync.syncNow());
+    expect(c.read(sessionControllerProvider).userId, isNull);
+    store.readGate!.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    verifyInOrder([() => db.clearAllUserData(), () => sync.syncNow()]);
+  });
+
+  test(
+    'çıkış sırasında süren eşitleme bitince veri temizlenir; sonraki farklı kullanıcı siler',
+    () async {
+      await emit(_session('a'));
+      final gate = Completer<SyncResult>();
+      when(() => sync.syncNow()).thenAnswer((_) => gate.future);
+      unawaited(c.read(sessionControllerProvider.notifier).onResumed());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await emit(null);
+      verifyNever(() => db.clearAllUserData());
+      gate.complete(SyncResult());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      verify(() => db.clearAllUserData()).called(1);
+      when(() => sync.syncNow()).thenAnswer((_) async => SyncResult());
+      await emit(_session('b'));
+      verify(() => db.clearAllUserData()).called(1);
+    },
+  );
+
+  test('keystore okuması patlarsa güvenli kapanır: veri silinir, eşitleme yok', () async {
+    store.readError = Exception('BadPadding');
+    await emit(_session('x'));
+    verify(() => db.clearAllUserData()).called(1);
+    verifyNever(() => sync.syncNow());
+    expect(c.read(sessionControllerProvider).userId, isNull);
+    expect(c.read(sessionControllerProvider).lastError, isNotNull);
   });
 }

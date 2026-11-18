@@ -8,7 +8,7 @@ abstract class KeyValueStore {
   Future<void> delete(String key);
 }
 
-const _storage = FlutterSecureStorage();
+const _storage = FlutterSecureStorage(aOptions: AndroidOptions(resetOnError: true));
 
 /// Android Keystore / iOS Keychain üzerinde saklar.
 class SecureKeyValueStore implements KeyValueStore {
@@ -37,10 +37,23 @@ class SecureLocalStorage extends LocalStorage {
   Future<void> initialize() async {}
 
   @override
-  Future<bool> hasAccessToken() async => (await store.read(sessionKey)) != null;
+  Future<bool> hasAccessToken() async => (await accessToken()) != null;
 
+  /// Keystore bozulursa (yedekten geri yükleme, anahtar sıfırlama) uygulama çökmesin:
+  /// oturum silinir ve oturumsuz başlanır.
   @override
-  Future<String?> accessToken() => store.read(sessionKey);
+  Future<String?> accessToken() async {
+    try {
+      return await store.read(sessionKey);
+    } catch (_) {
+      try {
+        await store.delete(sessionKey);
+      } catch (_) {
+        // En iyi çaba.
+      }
+      return null;
+    }
+  }
 
   @override
   Future<void> removePersistedSession() => store.delete(sessionKey);

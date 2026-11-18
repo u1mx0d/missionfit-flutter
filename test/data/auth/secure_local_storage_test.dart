@@ -3,8 +3,13 @@ import 'package:missionfit/data/auth/secure_local_storage.dart';
 
 class _Mem implements KeyValueStore {
   final m = <String, String>{};
+  bool fail = false;
   @override
-  Future<String?> read(String key) async => m[key];
+  Future<String?> read(String key) async {
+    if (fail) throw Exception('BadPadding');
+    return m[key];
+  }
+
   @override
   Future<void> write(String key, String value) async => m[key] = value;
   @override
@@ -20,5 +25,14 @@ void main() {
     expect(await s.accessToken(), '{"a":1}');
     await s.removePersistedSession();
     expect(await s.hasAccessToken(), isFalse);
+  });
+
+  test('keystore okuma hatası oturumsuz başlatır (null/false) ve oturumu siler', () async {
+    final mem = _Mem()..m[SecureLocalStorage.sessionKey] = 'x';
+    final s = SecureLocalStorage(store: mem);
+    mem.fail = true;
+    expect(await s.hasAccessToken(), isFalse);
+    expect(await s.accessToken(), isNull);
+    expect(mem.m.containsKey(SecureLocalStorage.sessionKey), isFalse);
   });
 }

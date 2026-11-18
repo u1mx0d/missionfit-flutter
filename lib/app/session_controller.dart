@@ -53,12 +53,19 @@ class SessionController extends Notifier<SessionState> {
     return const SessionState();
   }
 
-  /// Oturum değişimini sıraya koyar; çağrılar birbirini beklemeden çakışmaz.
-  Future<void> handleSession(Session? session) {
-    final next = _queue.then((_) => _handle(session?.user.id));
+  /// Tüm oturum ve eşitleme işleri tek sırada çalışır; böylece çıkış/kullanıcı değişimi
+  /// süren bir eşitlemeyi bekler ve eşitleme, temizlik bitmeden başlamaz.
+  Future<void> _enqueue(Future<void> Function() job) {
+    final next = _queue.then((_) => job());
     _queue = next.catchError((_) {});
     return next;
   }
+
+  /// Oturum değişimini sıraya koyar.
+  Future<void> handleSession(Session? session) => _enqueue(() => _handle(session?.user.id));
+
+  /// Çıkıştan sonra yazılan değer; sonraki her girişte son kullanıcıdan farklı sayılır.
+  static const signedOutMarker = 'signed-out';
 
   Future<void> _handle(String? userId) async {
     if (userId == null) {
@@ -69,8 +76,6 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     if (userId == _knownUserId) return;
-    _knownUserId = userId;
-    state = state.copyWith(userId: userId);
     try {
       final store = ref.read(keyValueStoreProvider);
       final db = ref.read(databaseProvider);
@@ -78,10 +83,19 @@ class SessionController extends Notifier<SessionState> {
       if (last != null && last != userId) await db.clearAllUserData();
       await store.write(SecureLocalStorage.lastUserIdKey, userId);
     } catch (e, st) {
+      // Güvenli kapanış: kullanıcı doğrulanamadı, eşitleme yok; eldeki yerel veri silinir.
       debugPrint('Kullanıcı değişimi kontrolü başarısız: $e\n$st');
-      state = state.copyWith(lastError: e);
+      _knownUserId = null;
+      state = SessionState(lastError: e);
+      try {
+        await ref.read(databaseProvider).clearAllUserData();
+      } catch (e2, st2) {
+        debugPrint('Güvenli kapanışta temizlik başarısız: $e2\n$st2');
+      }
       return;
     }
+    _knownUserId = userId;
+    state = state.copyWith(userId: userId);
     await _sync(catalogs: true);
   }
 
@@ -89,7 +103,9 @@ class SessionController extends Notifier<SessionState> {
     state = const SessionState();
     try {
       await ref.read(databaseProvider).clearAllUserData();
-      await ref.read(keyValueStoreProvider).delete(SecureLocalStorage.lastUserIdKey);
+      await ref
+          .read(keyValueStoreProvider)
+          .write(SecureLocalStorage.lastUserIdKey, signedOutMarker);
     } catch (e, st) {
       debugPrint('Çıkışta temizlik başarısız: $e\n$st');
       state = state.copyWith(lastError: e);
@@ -119,17 +135,18 @@ class SessionController extends Notifier<SessionState> {
   }
 
   /// Uygulama öne gelince her zaman eşitler.
-  Future<void> onResumed() => _sync();
+  Future<void> onResumed() => _enqueue(_sync);
 
   /// 60 sn'lik zamanlayıcı: yalnızca bekleyen işlem varsa.
-  Future<void> periodicTick() async {
+  Future<void> periodicTick() => _enqueue(() async {
+    if (state.userId == null) return;
     try {
       final pending = await ref.read(outboxProvider).pendingCount().first;
       if (pending > 0) await _sync();
     } catch (e, st) {
       debugPrint('Periyodik eşitleme başarısız: $e\n$st');
     }
-  }
+  });
 }
 
 final sessionControllerProvider = NotifierProvider<SessionController, SessionState>(
