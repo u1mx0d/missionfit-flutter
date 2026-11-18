@@ -8,6 +8,8 @@ import '../data/auth/secure_local_storage.dart';
 import '../data/db/database.dart';
 import '../data/export/export_service.dart';
 import '../data/notifications/notification_service.dart';
+import '../data/profile/avatar_picker.dart';
+import '../data/profile/profile_identity_repository.dart';
 import '../data/sync/outbox.dart';
 import '../data/sync/remote_gateway.dart';
 import '../data/sync/sync_engine.dart';
@@ -18,6 +20,9 @@ export '../data/account/account_service.dart' show AccountService, DeleteAccount
 export '../data/auth/auth_repository.dart' show AuthFailure, googleWrongAccountMessage;
 export '../data/export/export_service.dart' show ExportResult, ExportService;
 export '../data/notifications/notification_service.dart' show NotificationService, PermissionState;
+export '../data/profile/avatar_picker.dart' show AvatarPicker, AvatarSource;
+export '../data/profile/profile_identity_repository.dart'
+    show IdentityError, IdentityFailure, ProfileIdentityRepository;
 export '../data/profile/profile_repository.dart' show ProfileNotReadyException;
 
 final envProvider = Provider<Env>((ref) => Env.fromEnvironment());
@@ -78,6 +83,37 @@ final currentUserEmailProvider = Provider<String?>(
 final hasPasswordIdentityProvider = Provider<bool>(
   (ref) => ref.watch(authRepositoryProvider).hasPasswordIdentity,
 );
+
+final profileIdentityRepositoryProvider = Provider<ProfileIdentityRepository>(
+  (ref) => DefaultProfileIdentityRepository(
+    SupabaseIdentityRemote(ref.watch(supabaseProvider)),
+    ref.watch(databaseProvider),
+  ),
+);
+
+final avatarPickerProvider = Provider<AvatarPicker>((ref) => DeviceAvatarPicker());
+
+class GoogleProfile {
+  const GoogleProfile({this.name, this.photoUrl});
+  final String? name;
+  final String? photoUrl;
+}
+
+/// Google kimliği varsa kullanıcının Google adı/fotoğrafı; yoksa null.
+final googleProfileProvider = Provider<GoogleProfile?>((ref) {
+  final user = ref.watch(authStateProvider).value?.user;
+  if (user == null) return null;
+  if (!(user.identities?.any((i) => i.provider == 'google') ?? false)) return null;
+  final m = user.userMetadata ?? const {};
+  String? str(String k) {
+    final v = m[k];
+    return v is String && v.trim().isNotEmpty ? v.trim() : null;
+  }
+
+  var name = str('full_name') ?? str('name');
+  if (name != null && name.length > 40) name = name.substring(0, 40);
+  return GoogleProfile(name: name, photoUrl: str('avatar_url') ?? str('picture'));
+});
 
 final accountServiceProvider = Provider<AccountService>(
   (ref) => SupabaseAccountService(ref.watch(supabaseProvider), ref.watch(databaseProvider)),
