@@ -8,6 +8,8 @@ class MfTextField extends StatelessWidget {
     this.obscureText = false,
     this.errorText,
     this.onChanged,
+    this.suffix,
+    this.enabled = true,
     super.key,
   });
   final String label;
@@ -16,6 +18,8 @@ class MfTextField extends StatelessWidget {
   final bool obscureText;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final Widget? suffix;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) => TextField(
@@ -23,6 +27,7 @@ class MfTextField extends StatelessWidget {
     keyboardType: keyboardType,
     obscureText: obscureText,
     onChanged: onChanged,
-    decoration: InputDecoration(labelText: label, errorText: errorText),
+    enabled: enabled,
+    decoration: InputDecoration(labelText: label, errorText: errorText, suffixIcon: suffix),
   );
 }

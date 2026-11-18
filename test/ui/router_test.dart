@@ -8,6 +8,7 @@ import 'package:missionfit/app/providers.dart';
 import 'package:missionfit/app/theme_controller.dart';
 import 'package:missionfit/app/today_provider.dart';
 import 'package:missionfit/data/db/database.dart';
+import 'package:missionfit/env.dart';
 import 'package:missionfit/ui/components/pill_nav_bar.dart';
 import 'package:missionfit/ui/router.dart';
 import 'package:missionfit/ui/theme/accents.dart';
@@ -34,6 +35,13 @@ Future<(ProviderContainer, GoRouter)> _pump(
   final c = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
+      envProvider.overrideWithValue(
+        const Env(
+          supabaseUrl: 'https://x.supabase.co',
+          supabasePublishableKey: 'k',
+          googleWebClientId: '',
+        ),
+      ),
       sharedPreferencesProvider.overrideWithValue(sp),
       authStateProvider.overrideWithValue(AsyncData<Session?>(signedIn ? _FakeSession() : null)),
       signedInUserIdProvider.overrideWithValue(signedIn && userReady ? 'u1' : null),

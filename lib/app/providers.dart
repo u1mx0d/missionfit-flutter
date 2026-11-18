@@ -9,6 +9,9 @@ import '../data/sync/remote_gateway.dart';
 import '../data/sync/sync_engine.dart';
 import '../env.dart';
 
+// UI katmanı veri katmanını doğrudan içe aktaramaz; hata türü buradan açılır.
+export '../data/auth/auth_repository.dart' show AuthFailure;
+
 final envProvider = Provider<Env>((ref) => Env.fromEnvironment());
 
 final databaseProvider = Provider<AppDatabase>((ref) {

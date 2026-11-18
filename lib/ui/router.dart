@@ -4,6 +4,10 @@ import 'package:material_ui/material_ui.dart';
 
 import '../app/profile_controller.dart';
 import '../app/providers.dart';
+import 'auth/forgot_password_screen.dart';
+import 'auth/login_screen.dart';
+import 'auth/register_screen.dart';
+import 'auth/verify_code_screen.dart';
 import 'components/dot_grid.dart';
 import 'placeholders/coming_soon_screen.dart';
 import 'shell/app_shell.dart';
@@ -60,10 +64,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: _splash, builder: (_, _) => const _Splash()),
-      GoRoute(path: '/giris', builder: (_, _) => const _Placeholder('Giriş')),
-      GoRoute(path: '/kayit', builder: (_, _) => const _Placeholder('Kayıt')),
-      GoRoute(path: '/dogrula', builder: (_, _) => const _Placeholder('Doğrula')),
-      GoRoute(path: '/sifremi-unuttum', builder: (_, _) => const _Placeholder('Şifremi unuttum')),
+      GoRoute(path: '/giris', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/kayit', builder: (_, _) => const RegisterScreen()),
+      GoRoute(
+        path: '/dogrula',
+        builder: (_, s) => VerifyCodeScreen(email: s.uri.queryParameters['email'] ?? ''),
+      ),
+      GoRoute(path: '/sifremi-unuttum', builder: (_, _) => const ForgotPasswordScreen()),
       GoRoute(path: '/onboarding', builder: (_, _) => const _Placeholder('Başlangıç')),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => AppShell(navigationShell: shell),

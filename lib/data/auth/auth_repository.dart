@@ -72,6 +72,9 @@ class AuthRepository {
     () => _auth.verifyOTP(email: email, token: code, type: OtpType.signup),
   );
 
+  Future<void> resendSignUpCode(String email) =>
+      _run(AuthAction.resend, () => _auth.resend(type: OtpType.signup, email: email));
+
   Future<void> signIn(String email, String password) =>
       _run(AuthAction.signIn, () => _auth.signInWithPassword(email: email, password: password));
 
