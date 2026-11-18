@@ -29,7 +29,12 @@ const Object _keep = Object();
 ///
 /// Kancalar denetleyicinin sırası içinde çalışır; `handleSession`/`onResumed` veya sıraya
 /// girip bekleyen başka bir şey çağırmamalıdır (kilitlenme).
-final signedOutHooksProvider = Provider<List<Future<void> Function()>>((ref) => []);
+final signedOutHooksProvider = Provider<List<Future<void> Function()>>(
+  (ref) => [
+    // Önceki kullanıcının zamanlanmış bildirimleri çıkışta temizlenir.
+    () => ref.read(notificationServiceProvider).cancelAll(),
+  ],
+);
 
 /// Periyodik eşitleme zamanlayıcısı üreticisi; testlerde değiştirilir.
 typedef PeriodicTimerFactory = Timer Function(Duration period, void Function() tick);

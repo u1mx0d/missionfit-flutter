@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/auth/auth_repository.dart';
 import '../data/auth/secure_local_storage.dart';
 import '../data/db/database.dart';
+import '../data/notifications/notification_service.dart';
 import '../data/sync/outbox.dart';
 import '../data/sync/remote_gateway.dart';
 import '../data/sync/sync_engine.dart';
@@ -11,6 +12,7 @@ import '../env.dart';
 
 // UI katmanı veri katmanını doğrudan içe aktaramaz; hata türü buradan açılır.
 export '../data/auth/auth_repository.dart' show AuthFailure;
+export '../data/notifications/notification_service.dart' show NotificationService, PermissionState;
 
 final envProvider = Provider<Env>((ref) => Env.fromEnvironment());
 
@@ -55,4 +57,8 @@ final authStateProvider = StreamProvider<Session?>(
 
 final currentUserIdProvider = Provider<String?>(
   (ref) => ref.watch(authStateProvider).value?.user.id,
+);
+
+final notificationServiceProvider = Provider<NotificationService>(
+  (ref) => LocalNotificationService(PluginNotificationsPlatform()),
 );

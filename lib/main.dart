@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
 import 'app/profile_controller.dart';
+import 'app/providers.dart';
+import 'data/notifications/notification_service.dart';
 import 'app/session_controller.dart';
 import 'data/auth/secure_local_storage.dart';
 import 'app/theme_controller.dart';
@@ -28,9 +30,19 @@ Future<void> main() async {
   );
   // Yerel diskten okunur; ağ beklenmez, ilk karede kayıtlı tema kullanılır.
   final prefs = await SharedPreferences.getInstance();
+  final notifications = LocalNotificationService(PluginNotificationsPlatform());
+  try {
+    await notifications.init();
+  } catch (e, st) {
+    // Bildirim kurulumu açılışı engellememeli.
+    debugPrint('Bildirim kurulumu başarısız: $e\n$st');
+  }
   runApp(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        notificationServiceProvider.overrideWithValue(notifications),
+      ],
       child: const MissionFitApp(),
     ),
   );
