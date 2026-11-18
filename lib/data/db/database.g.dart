@@ -2442,7 +2442,7 @@ class $CustomFoodsTable extends CustomFoods with TableInfo<$CustomFoodsTable, Cu
   static const VerificationMeta _kcalPer100gMeta = const VerificationMeta('kcalPer100g');
   @override
   late final GeneratedColumn<double> kcalPer100g = GeneratedColumn<double>(
-    'kcal_per100g',
+    'kcal_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -2451,7 +2451,7 @@ class $CustomFoodsTable extends CustomFoods with TableInfo<$CustomFoodsTable, Cu
   static const VerificationMeta _proteinPer100gMeta = const VerificationMeta('proteinPer100g');
   @override
   late final GeneratedColumn<double> proteinPer100g = GeneratedColumn<double>(
-    'protein_per100g',
+    'protein_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -2461,7 +2461,7 @@ class $CustomFoodsTable extends CustomFoods with TableInfo<$CustomFoodsTable, Cu
   static const VerificationMeta _carbPer100gMeta = const VerificationMeta('carbPer100g');
   @override
   late final GeneratedColumn<double> carbPer100g = GeneratedColumn<double>(
-    'carb_per100g',
+    'carb_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -2471,7 +2471,7 @@ class $CustomFoodsTable extends CustomFoods with TableInfo<$CustomFoodsTable, Cu
   static const VerificationMeta _fatPer100gMeta = const VerificationMeta('fatPer100g');
   @override
   late final GeneratedColumn<double> fatPer100g = GeneratedColumn<double>(
-    'fat_per100g',
+    'fat_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -2566,30 +2566,30 @@ class $CustomFoodsTable extends CustomFoods with TableInfo<$CustomFoodsTable, Cu
         category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
       );
     }
-    if (data.containsKey('kcal_per100g')) {
+    if (data.containsKey('kcal_per_100g')) {
       context.handle(
         _kcalPer100gMeta,
-        kcalPer100g.isAcceptableOrUnknown(data['kcal_per100g']!, _kcalPer100gMeta),
+        kcalPer100g.isAcceptableOrUnknown(data['kcal_per_100g']!, _kcalPer100gMeta),
       );
     } else if (isInserting) {
       context.missing(_kcalPer100gMeta);
     }
-    if (data.containsKey('protein_per100g')) {
+    if (data.containsKey('protein_per_100g')) {
       context.handle(
         _proteinPer100gMeta,
-        proteinPer100g.isAcceptableOrUnknown(data['protein_per100g']!, _proteinPer100gMeta),
+        proteinPer100g.isAcceptableOrUnknown(data['protein_per_100g']!, _proteinPer100gMeta),
       );
     }
-    if (data.containsKey('carb_per100g')) {
+    if (data.containsKey('carb_per_100g')) {
       context.handle(
         _carbPer100gMeta,
-        carbPer100g.isAcceptableOrUnknown(data['carb_per100g']!, _carbPer100gMeta),
+        carbPer100g.isAcceptableOrUnknown(data['carb_per_100g']!, _carbPer100gMeta),
       );
     }
-    if (data.containsKey('fat_per100g')) {
+    if (data.containsKey('fat_per_100g')) {
       context.handle(
         _fatPer100gMeta,
-        fatPer100g.isAcceptableOrUnknown(data['fat_per100g']!, _fatPer100gMeta),
+        fatPer100g.isAcceptableOrUnknown(data['fat_per_100g']!, _fatPer100gMeta),
       );
     }
     if (data.containsKey('default_serving_grams')) {
@@ -2647,19 +2647,19 @@ class $CustomFoodsTable extends CustomFoods with TableInfo<$CustomFoodsTable, Cu
       )!,
       kcalPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}kcal_per100g'],
+        data['${effectivePrefix}kcal_per_100g'],
       )!,
       proteinPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}protein_per100g'],
+        data['${effectivePrefix}protein_per_100g'],
       )!,
       carbPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}carb_per100g'],
+        data['${effectivePrefix}carb_per_100g'],
       )!,
       fatPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}fat_per100g'],
+        data['${effectivePrefix}fat_per_100g'],
       )!,
       defaultServingGrams: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
@@ -2720,10 +2720,10 @@ class CustomFood extends DataClass implements Insertable<CustomFood> {
     map['user_id'] = Variable<String>(userId);
     map['name_tr'] = Variable<String>(nameTr);
     map['category'] = Variable<String>(category);
-    map['kcal_per100g'] = Variable<double>(kcalPer100g);
-    map['protein_per100g'] = Variable<double>(proteinPer100g);
-    map['carb_per100g'] = Variable<double>(carbPer100g);
-    map['fat_per100g'] = Variable<double>(fatPer100g);
+    map['kcal_per_100g'] = Variable<double>(kcalPer100g);
+    map['protein_per_100g'] = Variable<double>(proteinPer100g);
+    map['carb_per_100g'] = Variable<double>(carbPer100g);
+    map['fat_per_100g'] = Variable<double>(fatPer100g);
     map['default_serving_grams'] = Variable<double>(defaultServingGrams);
     map['serving_label'] = Variable<String>(servingLabel);
     map['created_at'] = Variable<String>(createdAt);
@@ -2951,10 +2951,10 @@ class CustomFoodsCompanion extends UpdateCompanion<CustomFood> {
       if (userId != null) 'user_id': userId,
       if (nameTr != null) 'name_tr': nameTr,
       if (category != null) 'category': category,
-      if (kcalPer100g != null) 'kcal_per100g': kcalPer100g,
-      if (proteinPer100g != null) 'protein_per100g': proteinPer100g,
-      if (carbPer100g != null) 'carb_per100g': carbPer100g,
-      if (fatPer100g != null) 'fat_per100g': fatPer100g,
+      if (kcalPer100g != null) 'kcal_per_100g': kcalPer100g,
+      if (proteinPer100g != null) 'protein_per_100g': proteinPer100g,
+      if (carbPer100g != null) 'carb_per_100g': carbPer100g,
+      if (fatPer100g != null) 'fat_per_100g': fatPer100g,
       if (defaultServingGrams != null) 'default_serving_grams': defaultServingGrams,
       if (servingLabel != null) 'serving_label': servingLabel,
       if (createdAt != null) 'created_at': createdAt,
@@ -3011,16 +3011,16 @@ class CustomFoodsCompanion extends UpdateCompanion<CustomFood> {
       map['category'] = Variable<String>(category.value);
     }
     if (kcalPer100g.present) {
-      map['kcal_per100g'] = Variable<double>(kcalPer100g.value);
+      map['kcal_per_100g'] = Variable<double>(kcalPer100g.value);
     }
     if (proteinPer100g.present) {
-      map['protein_per100g'] = Variable<double>(proteinPer100g.value);
+      map['protein_per_100g'] = Variable<double>(proteinPer100g.value);
     }
     if (carbPer100g.present) {
-      map['carb_per100g'] = Variable<double>(carbPer100g.value);
+      map['carb_per_100g'] = Variable<double>(carbPer100g.value);
     }
     if (fatPer100g.present) {
-      map['fat_per100g'] = Variable<double>(fatPer100g.value);
+      map['fat_per_100g'] = Variable<double>(fatPer100g.value);
     }
     if (defaultServingGrams.present) {
       map['default_serving_grams'] = Variable<double>(defaultServingGrams.value);
@@ -7494,7 +7494,7 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
   static const VerificationMeta _kcalPer100gMeta = const VerificationMeta('kcalPer100g');
   @override
   late final GeneratedColumn<double> kcalPer100g = GeneratedColumn<double>(
-    'kcal_per100g',
+    'kcal_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -7503,7 +7503,7 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
   static const VerificationMeta _proteinPer100gMeta = const VerificationMeta('proteinPer100g');
   @override
   late final GeneratedColumn<double> proteinPer100g = GeneratedColumn<double>(
-    'protein_per100g',
+    'protein_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -7512,7 +7512,7 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
   static const VerificationMeta _carbPer100gMeta = const VerificationMeta('carbPer100g');
   @override
   late final GeneratedColumn<double> carbPer100g = GeneratedColumn<double>(
-    'carb_per100g',
+    'carb_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -7521,7 +7521,7 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
   static const VerificationMeta _fatPer100gMeta = const VerificationMeta('fatPer100g');
   @override
   late final GeneratedColumn<double> fatPer100g = GeneratedColumn<double>(
-    'fat_per100g',
+    'fat_per_100g',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -7612,34 +7612,34 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
     } else if (isInserting) {
       context.missing(_categoryMeta);
     }
-    if (data.containsKey('kcal_per100g')) {
+    if (data.containsKey('kcal_per_100g')) {
       context.handle(
         _kcalPer100gMeta,
-        kcalPer100g.isAcceptableOrUnknown(data['kcal_per100g']!, _kcalPer100gMeta),
+        kcalPer100g.isAcceptableOrUnknown(data['kcal_per_100g']!, _kcalPer100gMeta),
       );
     } else if (isInserting) {
       context.missing(_kcalPer100gMeta);
     }
-    if (data.containsKey('protein_per100g')) {
+    if (data.containsKey('protein_per_100g')) {
       context.handle(
         _proteinPer100gMeta,
-        proteinPer100g.isAcceptableOrUnknown(data['protein_per100g']!, _proteinPer100gMeta),
+        proteinPer100g.isAcceptableOrUnknown(data['protein_per_100g']!, _proteinPer100gMeta),
       );
     } else if (isInserting) {
       context.missing(_proteinPer100gMeta);
     }
-    if (data.containsKey('carb_per100g')) {
+    if (data.containsKey('carb_per_100g')) {
       context.handle(
         _carbPer100gMeta,
-        carbPer100g.isAcceptableOrUnknown(data['carb_per100g']!, _carbPer100gMeta),
+        carbPer100g.isAcceptableOrUnknown(data['carb_per_100g']!, _carbPer100gMeta),
       );
     } else if (isInserting) {
       context.missing(_carbPer100gMeta);
     }
-    if (data.containsKey('fat_per100g')) {
+    if (data.containsKey('fat_per_100g')) {
       context.handle(
         _fatPer100gMeta,
-        fatPer100g.isAcceptableOrUnknown(data['fat_per100g']!, _fatPer100gMeta),
+        fatPer100g.isAcceptableOrUnknown(data['fat_per_100g']!, _fatPer100gMeta),
       );
     } else if (isInserting) {
       context.missing(_fatPer100gMeta);
@@ -7697,19 +7697,19 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
       )!,
       kcalPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}kcal_per100g'],
+        data['${effectivePrefix}kcal_per_100g'],
       )!,
       proteinPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}protein_per100g'],
+        data['${effectivePrefix}protein_per_100g'],
       )!,
       carbPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}carb_per100g'],
+        data['${effectivePrefix}carb_per_100g'],
       )!,
       fatPer100g: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}fat_per100g'],
+        data['${effectivePrefix}fat_per_100g'],
       )!,
       defaultServingGrams: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
@@ -7770,10 +7770,10 @@ class Food extends DataClass implements Insertable<Food> {
     map['slug'] = Variable<String>(slug);
     map['name_tr'] = Variable<String>(nameTr);
     map['category'] = Variable<String>(category);
-    map['kcal_per100g'] = Variable<double>(kcalPer100g);
-    map['protein_per100g'] = Variable<double>(proteinPer100g);
-    map['carb_per100g'] = Variable<double>(carbPer100g);
-    map['fat_per100g'] = Variable<double>(fatPer100g);
+    map['kcal_per_100g'] = Variable<double>(kcalPer100g);
+    map['protein_per_100g'] = Variable<double>(proteinPer100g);
+    map['carb_per_100g'] = Variable<double>(carbPer100g);
+    map['fat_per_100g'] = Variable<double>(fatPer100g);
     map['default_serving_grams'] = Variable<double>(defaultServingGrams);
     map['serving_label'] = Variable<String>(servingLabel);
     map['source'] = Variable<String>(source);
@@ -8007,10 +8007,10 @@ class FoodsCompanion extends UpdateCompanion<Food> {
       if (slug != null) 'slug': slug,
       if (nameTr != null) 'name_tr': nameTr,
       if (category != null) 'category': category,
-      if (kcalPer100g != null) 'kcal_per100g': kcalPer100g,
-      if (proteinPer100g != null) 'protein_per100g': proteinPer100g,
-      if (carbPer100g != null) 'carb_per100g': carbPer100g,
-      if (fatPer100g != null) 'fat_per100g': fatPer100g,
+      if (kcalPer100g != null) 'kcal_per_100g': kcalPer100g,
+      if (proteinPer100g != null) 'protein_per_100g': proteinPer100g,
+      if (carbPer100g != null) 'carb_per_100g': carbPer100g,
+      if (fatPer100g != null) 'fat_per_100g': fatPer100g,
       if (defaultServingGrams != null) 'default_serving_grams': defaultServingGrams,
       if (servingLabel != null) 'serving_label': servingLabel,
       if (source != null) 'source': source,
@@ -8067,16 +8067,16 @@ class FoodsCompanion extends UpdateCompanion<Food> {
       map['category'] = Variable<String>(category.value);
     }
     if (kcalPer100g.present) {
-      map['kcal_per100g'] = Variable<double>(kcalPer100g.value);
+      map['kcal_per_100g'] = Variable<double>(kcalPer100g.value);
     }
     if (proteinPer100g.present) {
-      map['protein_per100g'] = Variable<double>(proteinPer100g.value);
+      map['protein_per_100g'] = Variable<double>(proteinPer100g.value);
     }
     if (carbPer100g.present) {
-      map['carb_per100g'] = Variable<double>(carbPer100g.value);
+      map['carb_per_100g'] = Variable<double>(carbPer100g.value);
     }
     if (fatPer100g.present) {
-      map['fat_per100g'] = Variable<double>(fatPer100g.value);
+      map['fat_per_100g'] = Variable<double>(fatPer100g.value);
     }
     if (defaultServingGrams.present) {
       map['default_serving_grams'] = Variable<double>(defaultServingGrams.value);

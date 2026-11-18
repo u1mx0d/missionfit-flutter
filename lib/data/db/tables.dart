@@ -2,7 +2,8 @@ import 'package:drift/drift.dart';
 
 // Yerel tablolar sunucu şemasının aynasıdır. Sütun adları sunucuyla aynı snake_case
 // (drift camelCase alanları otomatik snake_case yapar), böylece senkron satırları ada göre
-// eşler. Saklama biçimleri: uuid TEXT, timestamptz TEXT (ISO-8601 UTC), date TEXT
+// eşler. İstisna: drift `kcalPer100g`'yi `kcal_per100g` yapar; bu yüzden *_per_100g sütunları
+// `.named()` ile açıkça adlandırılır. Saklama biçimleri: uuid TEXT, timestamptz TEXT (ISO-8601 UTC), date TEXT
 // ("YYYY-MM-DD"), time TEXT ("HH:mm"), jsonb TEXT (JSON), numeric REAL.
 //
 // Atlanan sunucu sütunları: foods.name_search ve custom_foods.name_search. Bunlar sunucuda
@@ -84,10 +85,11 @@ class CustomFoods extends Table {
   TextColumn get userId => text()();
   TextColumn get nameTr => text()();
   TextColumn get category => text().withDefault(const Constant('other'))();
-  RealColumn get kcalPer100g => real()();
-  RealColumn get proteinPer100g => real().withDefault(const Constant(0))();
-  RealColumn get carbPer100g => real().withDefault(const Constant(0))();
-  RealColumn get fatPer100g => real().withDefault(const Constant(0))();
+  RealColumn get kcalPer100g => real().named('kcal_per_100g')();
+  RealColumn get proteinPer100g =>
+      real().named('protein_per_100g').withDefault(const Constant(0))();
+  RealColumn get carbPer100g => real().named('carb_per_100g').withDefault(const Constant(0))();
+  RealColumn get fatPer100g => real().named('fat_per_100g').withDefault(const Constant(0))();
   RealColumn get defaultServingGrams => real().withDefault(const Constant(100))();
   TextColumn get servingLabel => text().withDefault(const Constant('100 g'))();
   TextColumn get createdAt => text()();
@@ -244,10 +246,10 @@ class Foods extends Table {
   TextColumn get slug => text().unique()();
   TextColumn get nameTr => text()();
   TextColumn get category => text()();
-  RealColumn get kcalPer100g => real()();
-  RealColumn get proteinPer100g => real()();
-  RealColumn get carbPer100g => real()();
-  RealColumn get fatPer100g => real()();
+  RealColumn get kcalPer100g => real().named('kcal_per_100g')();
+  RealColumn get proteinPer100g => real().named('protein_per_100g')();
+  RealColumn get carbPer100g => real().named('carb_per_100g')();
+  RealColumn get fatPer100g => real().named('fat_per_100g')();
   RealColumn get defaultServingGrams => real()();
   TextColumn get servingLabel => text()();
   TextColumn get source => text()();
