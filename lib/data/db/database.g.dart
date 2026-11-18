@@ -8589,7 +8589,7 @@ class DefaultTasksCompanion extends UpdateCompanion<DefaultTask> {
   }
 }
 
-class $OutboxOpsTable extends OutboxOps with TableInfo<$OutboxOpsTable, OutboxOp> {
+class $OutboxOpsTable extends OutboxOps with TableInfo<$OutboxOpsTable, OutboxRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -8667,7 +8667,10 @@ class $OutboxOpsTable extends OutboxOps with TableInfo<$OutboxOpsTable, OutboxOp
   String get actualTableName => $name;
   static const String $name = 'outbox_ops';
   @override
-  VerificationContext validateIntegrity(Insertable<OutboxOp> instance, {bool isInserting = false}) {
+  VerificationContext validateIntegrity(
+    Insertable<OutboxRow> instance, {
+    bool isInserting = false,
+  }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('op_id')) {
@@ -8715,9 +8718,9 @@ class $OutboxOpsTable extends OutboxOps with TableInfo<$OutboxOpsTable, OutboxOp
   @override
   Set<GeneratedColumn> get $primaryKey => {opId};
   @override
-  OutboxOp map(Map<String, dynamic> data, {String? tablePrefix}) {
+  OutboxRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return OutboxOp(
+    return OutboxRow(
       opId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}op_id'],
@@ -8746,7 +8749,7 @@ class $OutboxOpsTable extends OutboxOps with TableInfo<$OutboxOpsTable, OutboxOp
   }
 }
 
-class OutboxOp extends DataClass implements Insertable<OutboxOp> {
+class OutboxRow extends DataClass implements Insertable<OutboxRow> {
   final String opId;
   final String key;
   final String type;
@@ -8754,7 +8757,7 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
   final int attempts;
   final int createdAt;
   final int seq;
-  const OutboxOp({
+  const OutboxRow({
     required this.opId,
     required this.key,
     required this.type,
@@ -8788,9 +8791,9 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
     );
   }
 
-  factory OutboxOp.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+  factory OutboxRow.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return OutboxOp(
+    return OutboxRow(
       opId: serializer.fromJson<String>(json['opId']),
       key: serializer.fromJson<String>(json['key']),
       type: serializer.fromJson<String>(json['type']),
@@ -8814,7 +8817,7 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
     };
   }
 
-  OutboxOp copyWith({
+  OutboxRow copyWith({
     String? opId,
     String? key,
     String? type,
@@ -8822,7 +8825,7 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
     int? attempts,
     int? createdAt,
     int? seq,
-  }) => OutboxOp(
+  }) => OutboxRow(
     opId: opId ?? this.opId,
     key: key ?? this.key,
     type: type ?? this.type,
@@ -8831,8 +8834,8 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
     createdAt: createdAt ?? this.createdAt,
     seq: seq ?? this.seq,
   );
-  OutboxOp copyWithCompanion(OutboxOpsCompanion data) {
-    return OutboxOp(
+  OutboxRow copyWithCompanion(OutboxOpsCompanion data) {
+    return OutboxRow(
       opId: data.opId.present ? data.opId.value : this.opId,
       key: data.key.present ? data.key.value : this.key,
       type: data.type.present ? data.type.value : this.type,
@@ -8845,7 +8848,7 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
 
   @override
   String toString() {
-    return (StringBuffer('OutboxOp(')
+    return (StringBuffer('OutboxRow(')
           ..write('opId: $opId, ')
           ..write('key: $key, ')
           ..write('type: $type, ')
@@ -8862,7 +8865,7 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is OutboxOp &&
+      (other is OutboxRow &&
           other.opId == this.opId &&
           other.key == this.key &&
           other.type == this.type &&
@@ -8872,7 +8875,7 @@ class OutboxOp extends DataClass implements Insertable<OutboxOp> {
           other.seq == this.seq);
 }
 
-class OutboxOpsCompanion extends UpdateCompanion<OutboxOp> {
+class OutboxOpsCompanion extends UpdateCompanion<OutboxRow> {
   final Value<String> opId;
   final Value<String> key;
   final Value<String> type;
@@ -8906,7 +8909,7 @@ class OutboxOpsCompanion extends UpdateCompanion<OutboxOp> {
        payload = Value(payload),
        createdAt = Value(createdAt),
        seq = Value(seq);
-  static Insertable<OutboxOp> custom({
+  static Insertable<OutboxRow> custom({
     Expression<String>? opId,
     Expression<String>? key,
     Expression<String>? type,
@@ -13255,14 +13258,14 @@ class $$OutboxOpsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $OutboxOpsTable,
-          OutboxOp,
+          OutboxRow,
           $$OutboxOpsTableFilterComposer,
           $$OutboxOpsTableOrderingComposer,
           $$OutboxOpsTableAnnotationComposer,
           $$OutboxOpsTableCreateCompanionBuilder,
           $$OutboxOpsTableUpdateCompanionBuilder,
-          (OutboxOp, BaseReferences<_$AppDatabase, $OutboxOpsTable, OutboxOp>),
-          OutboxOp,
+          (OutboxRow, BaseReferences<_$AppDatabase, $OutboxOpsTable, OutboxRow>),
+          OutboxRow,
           PrefetchHooks Function()
         > {
   $$OutboxOpsTableTableManager(_$AppDatabase db, $OutboxOpsTable table)
@@ -13317,8 +13320,8 @@ class $$OutboxOpsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable<$OutboxOpsTable, OutboxOp>(table),
-                  BaseReferences<_$AppDatabase, $OutboxOpsTable, OutboxOp>(db, table, e),
+                  e.readTable<$OutboxOpsTable, OutboxRow>(table),
+                  BaseReferences<_$AppDatabase, $OutboxOpsTable, OutboxRow>(db, table, e),
                 ),
               )
               .toList(),
@@ -13331,14 +13334,14 @@ typedef $$OutboxOpsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $OutboxOpsTable,
-      OutboxOp,
+      OutboxRow,
       $$OutboxOpsTableFilterComposer,
       $$OutboxOpsTableOrderingComposer,
       $$OutboxOpsTableAnnotationComposer,
       $$OutboxOpsTableCreateCompanionBuilder,
       $$OutboxOpsTableUpdateCompanionBuilder,
-      (OutboxOp, BaseReferences<_$AppDatabase, $OutboxOpsTable, OutboxOp>),
-      OutboxOp,
+      (OutboxRow, BaseReferences<_$AppDatabase, $OutboxOpsTable, OutboxRow>),
+      OutboxRow,
       PrefetchHooks Function()
     >;
 typedef $$SyncCursorsTableCreateCompanionBuilder = SyncCursorsCompanion Function({

@@ -275,6 +275,7 @@ class DefaultTasks extends Table {
 
 /// Gönderilmeyi bekleyen yerel değişiklikler. `key` aynı kaydın tekrar kuyruğa alınmasını
 /// tekilleştirir; `seq` sıralama içindir (atama ve yeniden kuyruğa almada korunması Task 7).
+@DataClassName('OutboxRow')
 class OutboxOps extends Table {
   TextColumn get opId => text()();
   TextColumn get key => text().unique()();
