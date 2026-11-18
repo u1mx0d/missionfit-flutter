@@ -33,19 +33,22 @@ const themeAccentKey = 'theme_accent';
 const accentCustomizedKey = 'accent_customized';
 
 class ThemeController extends Notifier<ThemeSelection> {
+  /// Tema bir cihaz ayarıdır: cihazda seçim varsa hesap değişse de korunur.
+  /// Hesaptaki değer yalnızca cihazda hiç seçim yokken (yeni kurulum) benimsenir.
+  bool get _hasDeviceChoice => ref.read(sharedPreferencesProvider).containsKey(themeFamilyKey);
+
   @override
   ThemeSelection build() {
-    // Sunucu değeri farklıysa kazanır; yerel satır sunucudan çekilenle aynı kaynaktır.
     ref.listen(profileProvider, (_, next) {
       final p = next.value;
-      if (p != null) _adoptProfile(p);
+      if (p != null && !_hasDeviceChoice) _adoptProfile(p);
     });
+    if (_hasDeviceChoice) return _readCache();
     final p = ref.read(profileProvider).value;
     if (p != null) {
-      _noteCustomized(p);
+      _adoptProfile(p, notify: false);
       return _fromProfile(p);
     }
-    // Açılışta önce yereldeki seçim; ağ ya da veritabanı beklenmez.
     return _readCache();
   }
 
@@ -58,10 +61,10 @@ class ThemeController extends Notifier<ThemeSelection> {
     }
   }
 
-  void _adoptProfile(Profile p) {
+  void _adoptProfile(Profile p, {bool notify = true}) {
     _noteCustomized(p);
     final server = _fromProfile(p);
-    if (server != state) state = server;
+    if (notify && server != state) state = server;
     _cache(server);
   }
 

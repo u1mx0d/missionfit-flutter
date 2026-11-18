@@ -50,6 +50,15 @@ void main() {
     expect(dark.accent, AccentColor.mavi.darkTone);
   });
 
+  test('canlı degradesi vurgu rengini izler, mono degradesizdir', () {
+    final g = MfTheme.build(ThemeFamily.canli, Brightness.dark, AccentColor.yesil).gradientTop;
+    final m = MfTheme.build(ThemeFamily.canli, Brightness.dark, AccentColor.mor).gradientTop;
+    expect(g, isNotNull);
+    expect(m, isNot(g));
+    expect(m!.b, greaterThan(m.g));
+    expect(MfTheme.build(ThemeFamily.mono, Brightness.dark, AccentColor.mor).gradientTop, isNull);
+  });
+
   test('lerp geçişte çökmez', () {
     final a = MfTheme.build(ThemeFamily.mono, Brightness.dark, AccentColor.kirmizi);
     final b = MfTheme.build(ThemeFamily.canli, Brightness.light, AccentColor.yesil);

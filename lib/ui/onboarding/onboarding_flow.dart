@@ -42,6 +42,15 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   String? _saveError;
 
   @override
+  void initState() {
+    super.initState();
+    final current = ref.read(themeControllerProvider);
+    _draft
+      ..family = current.family
+      ..mode = current.mode;
+  }
+
+  @override
   void dispose() {
     _draft.dispose();
     super.dispose();
@@ -89,7 +98,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       _saveError = null;
     });
     if (_step == _themeStep) {
-      // Canlı önceden seçili gelir; seçim anında tüm uygulamada önizlenir.
+      // Cihazdaki mevcut tema önceden seçili gelir (yoksa Canlı); seçim anında önizlenir.
       ref.read(themeControllerProvider.notifier).preview(family: _draft.family, mode: _draft.mode);
     }
   }

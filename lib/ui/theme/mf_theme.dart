@@ -107,7 +107,10 @@ class MfTheme extends ThemeExtension<MfTheme> {
       danger: p.danger,
       kcal: p.kcal,
       dot: p.dot,
-      gradientTop: p.gradientTop,
+      // Degrade vurgu renginden türetilir; vurgu değişince zemin de ona uyar.
+      gradientTop: p.gradientTop == null
+          ? null
+          : Color.lerp(p.background, dark ? accent.darkTone : accent.lightTone, dark ? 0.28 : 0.15),
       displayFont: mono ? fontSpaceGrotesk : fontInter,
       bodyFont: mono ? fontSpaceGrotesk : fontInter,
       numberFont: mono ? fontDoto : fontInter,

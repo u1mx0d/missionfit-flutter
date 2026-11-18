@@ -77,9 +77,21 @@ void main() {
     expect(s.accent, AccentColor.mor);
   });
 
-  test('sunucudaki değer farklıysa sunucu kazanır', () async {
+  test('cihazda seçim varsa hesap değişse de cihazdaki tema korunur', () async {
     await seed(family: 'mono', accent: 'mavi', theme: 'light');
     final c = await make({'theme_family': 'canli', 'theme_mode': 'dark', 'theme_accent': 'mor'});
+    c.read(themeControllerProvider);
+    await c.read(profileProvider.future);
+    await Future<void>.delayed(Duration.zero);
+    final s = c.read(themeControllerProvider);
+    expect(s.family, ThemeFamily.canli);
+    expect(s.mode, ThemeModeChoice.dark);
+    expect(s.accent, AccentColor.mor);
+  });
+
+  test('cihazda seçim yoksa (yeni kurulum) hesaptaki tema benimsenir', () async {
+    await seed(family: 'mono', accent: 'mavi', theme: 'light');
+    final c = await make();
     c.read(themeControllerProvider);
     await c.read(profileProvider.future);
     await Future<void>.delayed(Duration.zero);
@@ -87,6 +99,7 @@ void main() {
     expect(s.family, ThemeFamily.mono);
     expect(s.mode, ThemeModeChoice.light);
     expect(s.accent, AccentColor.mavi);
+    expect(c.read(sharedPreferencesProvider).getString('theme_family'), 'mono');
   });
 
   test('bilinmeyen sunucu değerleri çökmeden varsayılana düşer', () async {
