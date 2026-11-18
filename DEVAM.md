@@ -47,7 +47,7 @@ Modüller aynı kalıyor:
 - İyileştirmeler (Claude'un kararı, kullanıcıya bildirildi): güvenilir bildirim kanalı + tam zamanlı alarm, arka planda dinlenme sayacı (Aşama 2), oturum flutter_secure_storage'da, 10 vurgu rengi + kontrast testleri, yeni uygulama ikonu.
 - **Veri katmanı = B (drift/SQLite telefon öncelikli + Supabase senkronu). Seçildi.** Riverpod + go_router + drift. İş kuralları lib/domain'de saf Dart.
 - **Auth: Supabase'de kalınıyor (Appwrite reddedildi).** E-posta Gmail SMTP + uygulama şifresiyle gönderilecek (domain gerekmez, ~500/gün). Ayrıca 'Google ile devam et' (native, signInWithIdToken). Dokümana eklendi.
-- **Aşama 1 tasarım dokümanı yazıldı:** `docs/superpowers/specs/2026-11-18-asama-1-temel-design.md`. **Kullanıcı onayı bekleniyor.** Onaylanınca: git init + GitHub repo (u1mx0d/missionfit-flutter, public) + ilk commit doküman, sonra superpowers:writing-plans.
+- **Aşama 1 tasarımı onaylandı ve commitlendi.** Repo: github.com/u1mx0d/missionfit-flutter. Plan: `docs/superpowers/plans/2026-11-18-asama-1-temel.md` (17 görev). Kullanıcının plan onayı ve yürütme yöntemi seçimi bekleniyor.
 - Tema kurgusuna (aşağıdaki öneri) itiraz etmedi, renk seçimini ekledi.
 
 ## Claude'un önerisi (kullanıcı henüz onaylamadı)
