@@ -107,4 +107,24 @@ class FakeRemoteGateway implements RemoteGateway {
     catalogFetches++;
     return [...?catalogs[table]];
   }
+
+  /// `fetchPage` çağrıları: `'<tablo>@<offset>'`.
+  final List<String> pageFetches = [];
+
+  /// Verilirse `fetchPage` bu hatayı fırlatır (çevrimdışı benzetimi).
+  Object? failFetchPage;
+
+  @override
+  Future<List<Map<String, Object?>>> fetchPage(
+    String table, {
+    required int offset,
+    required int limit,
+  }) async {
+    if (failFetchPage != null) throw failFetchPage!;
+    pageFetches.add('$table@$offset');
+    final idCol = idColumn(table);
+    final rows = [...?tables[table]?.values]
+      ..sort((a, b) => (a[idCol]! as String).compareTo(b[idCol]! as String));
+    return rows.skip(offset).take(limit).map((r) => {...r}).toList();
+  }
 }

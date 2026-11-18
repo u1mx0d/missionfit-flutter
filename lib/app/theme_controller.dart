@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/profile/profile_repository.dart';
 import '../ui/theme/accents.dart';
 import '../ui/theme/mf_theme.dart';
 import 'profile_controller.dart';

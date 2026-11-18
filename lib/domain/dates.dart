@@ -138,3 +138,26 @@ DateTime zonedTimeToUtc(LocalDate date, int minutesOfDay, String timeZone) {
   final ms = off1 == off2 ? first : guess - off2 * 60000;
   return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
 }
+
+const _regionPrefixes = [
+  'Africa/',
+  'America/',
+  'Antarctica/',
+  'Arctic/',
+  'Asia/',
+  'Atlantic/',
+  'Australia/',
+  'Europe/',
+  'Indian/',
+  'Pacific/',
+];
+
+/// Seçilebilir IANA saat dilimleri (alfabetik): saat dilimi veritabanındaki geçerli bölge
+/// adları ve `UTC`. Eski takma adlar (`US/Pacific`, `Etc/GMT+3` vb.) listelenmez.
+List<String> selectableTimeZones() {
+  final names = [
+    for (final name in tz.timeZoneDatabase.locations.keys)
+      if ((name == 'UTC' || _regionPrefixes.any(name.startsWith)) && isValidTimeZone(name)) name,
+  ]..sort();
+  return names;
+}

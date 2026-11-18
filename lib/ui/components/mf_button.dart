@@ -8,12 +8,16 @@ class MfButton extends StatelessWidget {
     required this.onPressed,
     this.secondary = false,
     this.loading = false,
+    this.danger = false,
     super.key,
   });
   final String label;
   final VoidCallback? onPressed;
   final bool secondary;
   final bool loading;
+
+  /// Geri alınamaz işlemler için kırmızı dolgu.
+  final bool danger;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +44,7 @@ class MfButton extends StatelessWidget {
             style: FilledButton.styleFrom(
               minimumSize: size,
               shape: shape,
-              backgroundColor: t.accent,
+              backgroundColor: danger ? t.danger : t.accent,
               foregroundColor: t.onAccent,
             ),
             child: child,

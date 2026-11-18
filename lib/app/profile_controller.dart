@@ -5,6 +5,9 @@ import '../data/profile/profile_repository.dart';
 import 'providers.dart';
 import 'session_controller.dart';
 
+// UI katmanı veri katmanını içe aktaramaz; profil modeli buradan açılır.
+export '../data/profile/profile_repository.dart' show Profile;
+
 /// Önceden yüklenmiş tercihler; `main` içinde geçersiz kılınır (ağ beklemez).
 final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('sharedPreferencesProvider geçersiz kılınmalı'),
@@ -37,4 +40,16 @@ final onboardedProvider = Provider<bool>((ref) {
   if (userId == null) return false;
   final flag = ref.watch(sharedPreferencesProvider).getBool(onboardedFlagKey(userId)) ?? false;
   return flag || (ref.watch(profileProvider).value?.onboardingCompleted ?? false);
+});
+
+/// Oturumdaki kullanıcının profilini günceller (yerel satır + outbox). Profil yüklenmediyse
+/// `ProfileNotReadyException` fırlar.
+typedef ProfileUpdater = Future<void> Function(Profile Function(Profile) change);
+
+final profileUpdaterProvider = Provider<ProfileUpdater>((ref) {
+  return (change) async {
+    final userId = ref.read(signedInUserIdProvider);
+    if (userId == null) throw StateError('Oturum yok');
+    await ref.read(profileRepositoryProvider).update(userId, change);
+  };
 });

@@ -50,6 +50,14 @@ abstract interface class RemoteGateway {
 
   /// Katalog tablosunun tamamı.
   Future<List<Map<String, Object?>>> fetchCatalog(String table);
+
+  /// Kullanıcının kendi satırlarından (RLS) kimlik sütununa göre sıralı bir sayfa
+  /// (`offset`'ten başlayarak en çok [limit] satır). Dışa aktarma için.
+  Future<List<Map<String, Object?>>> fetchPage(
+    String table, {
+    required int offset,
+    required int limit,
+  });
 }
 
 class SupabaseRemoteGateway implements RemoteGateway {
@@ -138,5 +146,19 @@ class SupabaseRemoteGateway implements RemoteGateway {
       all.addAll(rows);
       if (rows.length < page) return all;
     }
+  }
+
+  @override
+  Future<List<Map<String, Object?>>> fetchPage(
+    String table, {
+    required int offset,
+    required int limit,
+  }) async {
+    final rows = await _client
+        .from(table)
+        .select()
+        .order(idColumn(table), ascending: true)
+        .range(offset, offset + limit - 1);
+    return rows;
   }
 }

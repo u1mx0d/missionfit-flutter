@@ -8,9 +8,9 @@ import 'auth/forgot_password_screen.dart';
 import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
 import 'auth/verify_code_screen.dart';
-import 'components/dot_grid.dart';
 import 'onboarding/onboarding_flow.dart';
 import 'placeholders/coming_soon_screen.dart';
+import 'profile/profile_routes.dart';
 import 'shell/app_shell.dart';
 import 'today/today_screen.dart';
 
@@ -119,15 +119,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/profil',
-                builder: (_, _) => const _Placeholder('Profil'),
-                routes: [
-                  // Task 16 profil alt rotalarıyla değiştirilir.
-                  GoRoute(
-                    path: 'ayarlar',
-                    builder: (_, _) =>
-                        const _Placeholder('Ayarlar', key: ValueKey('profil-ayarlar')),
-                  ),
-                ],
+                builder: (_, _) => const ProfileScreen(),
+                routes: profileSubRoutes,
               ),
             ],
           ),
@@ -147,17 +140,4 @@ class _Splash extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Scaffold(body: Center(child: CircularProgressIndicator()));
-}
-
-/// Geçici ekran; Görev 13/15/16'da gerçekleriyle değiştirilir.
-class _Placeholder extends StatelessWidget {
-  const _Placeholder(this.title, {super.key});
-  final String title;
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.transparent,
-    body: Center(
-      child: Text(title, style: TextStyle(color: mf(context).text)),
-    ),
-  );
 }

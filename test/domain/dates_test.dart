@@ -106,4 +106,15 @@ void main() {
       expect(parseLocalTime(null), isNull);
     });
   });
+
+  group('selectableTimeZones', () {
+    test('bölge adlarını ve UTC yi alfabetik verir, eski takma adları vermez', () {
+      final zones = selectableTimeZones();
+      expect(zones, containsAll(['Europe/Istanbul', 'Asia/Tokyo', 'UTC']));
+      expect(zones, isNot(contains('US/Pacific')));
+      expect(zones.any((z) => z.startsWith('Etc/')), isFalse);
+      expect(zones, [...zones]..sort());
+      expect(zones.every(isValidTimeZone), isTrue);
+    });
+  });
 }
