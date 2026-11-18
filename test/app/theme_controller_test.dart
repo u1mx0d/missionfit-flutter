@@ -6,6 +6,7 @@ import 'package:missionfit/app/profile_controller.dart';
 import 'package:missionfit/app/providers.dart';
 import 'package:missionfit/app/theme_controller.dart';
 import 'package:missionfit/data/db/database.dart';
+import 'package:missionfit/data/profile/profile_repository.dart';
 import 'package:missionfit/data/sync/outbox.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
@@ -108,5 +109,15 @@ void main() {
     expect(c.read(onboardedProvider), isFalse);
     final c2 = await make({'onboarded.u1': true});
     expect(c2.read(onboardedProvider), isTrue);
+  });
+
+  test('profil satırı yokken seçim geri alınır ve hata fırlar', () async {
+    final c = await make();
+    final n = c.read(themeControllerProvider.notifier);
+    await expectLater(n.setAccent(AccentColor.mor), throwsA(isA<ProfileNotReadyException>()));
+    expect(c.read(themeControllerProvider).accent, AccentColor.yesil);
+    final prefs = c.read(sharedPreferencesProvider);
+    expect(prefs.getString('theme_accent'), 'yesil');
+    expect(prefs.getBool('accent_customized'), isNull);
   });
 }

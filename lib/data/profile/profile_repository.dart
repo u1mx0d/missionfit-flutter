@@ -20,6 +20,22 @@ T? _byName<T extends Enum>(List<T> values, String? name) {
   return null;
 }
 
+Object? _tryDecode(String s) {
+  try {
+    return jsonDecode(s);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Yerel profil satırı yok ve sunucudan da alınamadı (ör. ilk eşitleme gelmedi, çevrimdışı).
+class ProfileNotReadyException implements Exception {
+  const ProfileNotReadyException();
+  static const message = 'Profil henüz yüklenmedi. İnternet bağlantını kontrol edip tekrar dene.';
+  @override
+  String toString() => message;
+}
+
 String activityLevelToServer(ActivityLevel a) =>
     a == ActivityLevel.veryActive ? 'very_active' : a.name;
 
@@ -80,12 +96,7 @@ class Profile {
   final String updatedAt;
 
   factory Profile.fromRow(d.Profile r) {
-    Object? ns;
-    try {
-      ns = jsonDecode(r.notificationSettings);
-    } catch (_) {
-      ns = null;
-    }
+    final ns = _tryDecode(r.notificationSettings);
     return Profile(
       userId: r.userId,
       displayName: r.displayName,
@@ -138,6 +149,44 @@ class Profile {
     'created_at': createdAt,
     'updated_at': updatedAt,
   };
+
+  /// Sunucu satırı (snake_case, jsonb -> Map, boolean -> bool) -> yerel profil. Tolerant.
+  static Profile? fromServer(Map<String, Object?> m) {
+    final userId = m['user_id'];
+    if (userId is! String) return null;
+    String? str(String k) => m[k] is String ? m[k]! as String : null;
+    double? dbl(String k) => m[k] is num ? (m[k]! as num).toDouble() : null;
+    int? integer(String k) => m[k] is num ? (m[k]! as num).toInt() : null;
+    final now = DateTime.now().toUtc().toIso8601String();
+    return Profile(
+      userId: userId,
+      displayName: str('display_name'),
+      heightCm: dbl('height_cm'),
+      weightKg: dbl('weight_kg'),
+      birthYear: integer('birth_year'),
+      sex: _byName(Sex.values, str('sex')),
+      activityLevel: activityLevelFromServer(str('activity_level')),
+      goal: _byName(Goal.values, str('goal')),
+      calorieTarget: integer('calorie_target'),
+      calorieTargetIsManual: m['calorie_target_is_manual'] == true,
+      units: str('units') == 'lb' ? WeightUnit.lb : WeightUnit.kg,
+      weekStartsOn: str('week_starts_on') == 'sunday' ? WeekStartsOn.sunday : WeekStartsOn.monday,
+      timezone: str('timezone') ?? 'Europe/Istanbul',
+      theme: modeFromString(str('theme')),
+      accent: str('accent') ?? 'indigo',
+      themeFamily: familyFromString(str('theme_family')),
+      accentColor: accentFromString(str('accent_color')),
+      notificationSettings: parseNotificationSettings(
+        m['notification_settings'] is String
+            ? _tryDecode(m['notification_settings']! as String)
+            : m['notification_settings'],
+      ),
+      onboardingCompleted: m['onboarding_completed'] == true,
+      consentedAt: str('consented_at'),
+      createdAt: str('created_at') ?? now,
+      updatedAt: str('updated_at') ?? now,
+    );
+  }
 
   Map<String, Object?> toPayload() => toRow()..remove('updated_at');
 
@@ -216,8 +265,11 @@ class Profile {
 const Object _keep = Object();
 
 class ProfileRepository {
-  ProfileRepository(this._db, this._outbox, {DateTime Function()? clock})
+  ProfileRepository(this._db, this._outbox, {DateTime Function()? clock, this.fetchRemote})
     : _clock = clock ?? DateTime.now;
+
+  /// Yerel satır yokken sunucudan tek seferlik profil çeker (null: yok).
+  final Future<Map<String, Object?>?> Function(String userId)? fetchRemote;
 
   final AppDatabase _db;
   final OutboxRepository _outbox;
@@ -231,25 +283,51 @@ class ProfileRepository {
       );
 
   /// Yerel satırı değiştirir ve `profiles.upsert` işlemini aynı transaction'da kuyruğa alır;
-  /// biri başarısız olursa ikisi de geri alınır. Yerel satır henüz yoksa (ilk eşitleme
-  /// gelmedi) hiçbir şey yazılmaz: varsayılanlarla sunucu satırının üzerine yazılmasın.
-  Future<void> update(String userId, Profile Function(Profile) change) => _db.transaction(() async {
-    final row = await (_db.select(
-      _db.profiles,
-    )..where((t) => t.userId.equals(userId))).getSingleOrNull();
-    if (row == null) return;
-    final next = change(Profile.fromRow(row));
-    await _db.into(_db.profiles).insertOnConflictUpdate(next.toCompanion());
-    final now = _clock();
-    await _outbox.enqueue(
-      OutboxOp(
-        opId: 'profiles-$userId-${now.microsecondsSinceEpoch}-${_counter++}',
-        key: 'profiles:$userId',
-        type: 'profiles.upsert',
-        payload: next.toPayload(),
-        attempts: 0,
-        createdAt: now.millisecondsSinceEpoch,
-      ),
-    );
-  });
+  /// biri başarısız olursa ikisi de geri alınır. Yerel satır yoksa önce sunucudan bir kez
+  /// alınıp uygulanır; alınamazsa [ProfileNotReadyException] fırlar (sessizce yutulmaz).
+  Future<void> update(String userId, Profile Function(Profile) change) async {
+    if (!await _hasRow(userId)) await _fetchAndStore(userId);
+    await _db.transaction(() async {
+      final row = await (_db.select(
+        _db.profiles,
+      )..where((t) => t.userId.equals(userId))).getSingleOrNull();
+      if (row == null) throw const ProfileNotReadyException();
+      final next = change(Profile.fromRow(row));
+      await _db.into(_db.profiles).insertOnConflictUpdate(next.toCompanion());
+      final now = _clock();
+      await _outbox.enqueue(
+        OutboxOp(
+          opId: 'profiles-$userId-${now.microsecondsSinceEpoch}-${_counter++}',
+          key: 'profiles:$userId',
+          type: 'profiles.upsert',
+          payload: next.toPayload(),
+          attempts: 0,
+          createdAt: now.millisecondsSinceEpoch,
+        ),
+      );
+    });
+  }
+
+  Future<bool> _hasRow(String userId) async =>
+      await (_db.select(_db.profiles)..where((t) => t.userId.equals(userId))).getSingleOrNull() !=
+      null;
+
+  Future<void> _fetchAndStore(String userId) async {
+    final fetch = fetchRemote;
+    if (fetch == null) throw const ProfileNotReadyException();
+    final Profile? remote;
+    try {
+      final m = await fetch(userId);
+      remote = m == null ? null : Profile.fromServer(m);
+    } catch (_) {
+      throw const ProfileNotReadyException();
+    }
+    if (remote == null || remote.userId != userId) throw const ProfileNotReadyException();
+    // Bu arada pull satırı getirmiş olabilir; varsa ezme.
+    await _db.transaction(() async {
+      if (!await _hasRow(userId)) {
+        await _db.into(_db.profiles).insert(remote!.toCompanion());
+      }
+    });
+  }
 }

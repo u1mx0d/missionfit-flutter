@@ -16,7 +16,11 @@ final signedInUserIdProvider = Provider<String?>(
 );
 
 final profileRepositoryProvider = Provider<ProfileRepository>(
-  (ref) => ProfileRepository(ref.watch(databaseProvider), ref.watch(outboxProvider)),
+  (ref) => ProfileRepository(
+    ref.watch(databaseProvider),
+    ref.watch(outboxProvider),
+    fetchRemote: (userId) => ref.read(remoteGatewayProvider).fetchById('profiles', userId),
+  ),
 );
 
 final profileProvider = StreamProvider<Profile?>((ref) {

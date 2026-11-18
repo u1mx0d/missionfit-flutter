@@ -5,6 +5,10 @@ import 'package:missionfit/data/db/database.dart' hide Profile;
 import 'package:missionfit/data/profile/profile_repository.dart';
 import 'package:missionfit/data/sync/outbox.dart';
 import 'package:missionfit/data/sync/outbox_queue.dart';
+import 'package:missionfit/data/sync/sync_engine.dart';
+
+import '../sync/fake_remote_gateway.dart';
+
 import 'package:missionfit/domain/calories.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 
@@ -75,9 +79,71 @@ void main() {
     expect(p!.userId, 'u1');
   });
 
-  test('yerel satır yoksa update hiçbir şey yazmaz', () async {
+  test('yerel satır yoksa ve sunucudan alınamazsa ProfileNotReadyException fırlatır', () async {
     final outbox = OutboxRepository(db);
-    await ProfileRepository(db, outbox).update('u1', (p) => p);
+    final repo = ProfileRepository(db, outbox, fetchRemote: (_) async => null);
+    await expectLater(
+      repo.update('u1', (p) => p.copyWith(displayName: 'Ali')),
+      throwsA(isA<ProfileNotReadyException>()),
+    );
     expect(await outbox.pending(), isEmpty);
+    expect(await repo.watch('u1').first, isNull);
+  });
+
+  test('fetchRemote hata verirse de ProfileNotReadyException fırlatır', () async {
+    final repo = ProfileRepository(
+      db,
+      OutboxRepository(db),
+      fetchRemote: (_) async => throw StateError('ağ yok'),
+    );
+    await expectLater(repo.update('u1', (p) => p), throwsA(isA<ProfileNotReadyException>()));
+  });
+
+  test('yerel satır yoksa sunucudan bir kez alınır, uygulanır ve güncellenir', () async {
+    final outbox = OutboxRepository(db);
+    var calls = 0;
+    final repo = ProfileRepository(
+      db,
+      outbox,
+      fetchRemote: (id) async {
+        calls++;
+        return {
+          'user_id': id,
+          'display_name': 'Sunucu',
+          'accent_color': 'mavi',
+          'theme_family': 'mono',
+          'activity_level': 'very_active',
+          'notification_settings': {'enabled': false, 'task_lead_minutes': 5},
+          'onboarding_completed': false,
+          'created_at': '2026-01-01T00:00:00Z',
+          'updated_at': '2026-01-01T00:00:00Z',
+        };
+      },
+    );
+    await repo.update('u1', (p) => p.copyWith(onboardingCompleted: true));
+    expect(calls, 1);
+    final p = (await repo.watch('u1').first)!;
+    expect(p.displayName, 'Sunucu');
+    expect(p.accentColor, AccentColor.mavi);
+    expect(p.activityLevel, ActivityLevel.veryActive);
+    expect(p.notificationSettings.enabled, isFalse);
+    expect(p.onboardingCompleted, isTrue);
+    expect((await outbox.pending()).single.payload['onboarding_completed'], true);
+  });
+
+  test('bekleyen profiles.upsert yerel satırı eski sunucu değerine karşı korur', () async {
+    await seed(db);
+    final outbox = OutboxRepository(db);
+    final remote = FakeRemoteGateway();
+    remote.put('profiles', {
+      'user_id': 'u1',
+      'display_name': 'Eski',
+      'created_at': '2026-01-01T00:00:00Z',
+    });
+    await ProfileRepository(db, outbox).update('u1', (p) => p.copyWith(displayName: 'Yeni'));
+    await SyncEngine(db, outbox, remote).pull();
+    final p = await ProfileRepository(db, outbox).watch('u1').first;
+    expect(p!.displayName, 'Yeni');
+    expect(await outbox.pending(), hasLength(1));
   });
 }
