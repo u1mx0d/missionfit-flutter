@@ -437,7 +437,7 @@ missionfit-flutter/
 
 **Files:**
 - Create: `lib/data/notifications/notification_service.dart`, `assets/icon/icon.svg`, `assets/icon/*.png`, `flutter_launcher_icons.yaml`
-- Modify: `android/app/src/main/AndroidManifest.xml`, `PLACEHOLDER
+- Modify: `android/app/src/main/AndroidManifest.xml` (deneme bildirimi düğmesi Profil'e Task 16'da eklenir)
 - Test: `test/data/notifications/notification_service_test.dart`
 
 **Interfaces:**
