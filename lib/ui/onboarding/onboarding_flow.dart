@@ -186,6 +186,26 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
     context.go('/bugun');
   }
 
+  Future<void> _confirmSignOut() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Çıkış yapılsın mı?'),
+        content: const Text('Onboarding\'i daha sonra kaldığın yerden yeniden başlatabilirsin.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Vazgeç')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Çıkış yap')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+    } on AuthFailure catch (e) {
+      if (mounted) setState(() => _saveError = e.message);
+    }
+  }
+
   Widget _body() => switch (_step) {
     _consentStep => ConsentStep(
       kvkk: _draft.consentKvkk,
@@ -260,6 +280,20 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
             label: _saveError == null ? 'Bitir' : 'Tekrar dene',
             loading: _busy,
             onPressed: _finish,
+          ),
+        ];
+      case _consentStep:
+        return [
+          if (_saveError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(_saveError!, style: TextStyle(color: mf(context).danger)),
+            ),
+          MfButton(label: 'Devam', onPressed: _next),
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: _busy ? null : _confirmSignOut,
+            child: Text('Çıkış yap', style: TextStyle(color: mf(context).textMuted)),
           ),
         ];
       default:

@@ -45,8 +45,12 @@ class _FakeAuth extends Fake implements AuthRepository {
 
 class _FakeAccount implements AccountService {
   int deletes = 0;
+  Object? error;
   @override
-  Future<void> deleteAccount() async => deletes++;
+  Future<void> deleteAccount() async {
+    if (error != null) throw error!;
+    deletes++;
+  }
 }
 
 class _FakeNotifications implements NotificationService {
@@ -365,6 +369,26 @@ void main() {
       await t.pumpAndSettle();
       expect(ctx.auth.calls, ['reauth-google', 'signOut']);
       expect(ctx.account.deletes, 1);
+    });
+    testWidgets('I-2: farklı Google hesabı seçilirse silinmez ve mesaj gösterilir', (t) async {
+      final ctx = await _pump(t, initial: '/profil/hesap-sil', password: false);
+      ctx.auth.reauthFailure = const AuthFailure(googleWrongAccountMessage);
+      await fill(t, pw: '');
+      await t.tap(find.widgetWithText(FilledButton, 'Hesabımı kalıcı olarak sil'));
+      await t.pumpAndSettle();
+      expect(ctx.account.deletes, 0);
+      expect(find.text(googleWrongAccountMessage), findsWidgets);
+    });
+
+    testWidgets('M-3: beklenmeyen hata genel mesajla gösterilir', (t) async {
+      final ctx = await _pump(t, initial: '/profil/hesap-sil');
+      ctx.account.error = StateError('beklenmedik');
+      await fill(t);
+      await t.tap(find.widgetWithText(FilledButton, 'Hesabımı kalıcı olarak sil'));
+      await t.pumpAndSettle();
+      expect(find.text('Bir şeyler ters gitti. Lütfen tekrar dene.'), findsOneWidget);
+      expect(find.text('GİRİŞ'), findsNothing);
+      expect(t.takeException(), isNull);
     });
   });
 }

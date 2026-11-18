@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/calories.dart';
+import '../domain/dates.dart' show isValidTimeZone;
 import '../domain/notification_settings.dart';
 import '../domain/units.dart';
 import '../ui/theme/accents.dart';
 import '../ui/theme/mf_theme.dart';
 import 'profile_controller.dart';
+import 'providers.dart';
 import 'today_provider.dart';
 
 /// Onboarding sonunda profile yazılacak değerler (kilo her zaman kg).
@@ -40,7 +42,7 @@ class OnboardingData {
 
 typedef OnboardingSaver = Future<void> Function(OnboardingData data);
 
-/// Tüm onboarding verisini TEK profil güncellemesiyle yazar, ardından yerel
+/// Tüm onboarding verisini (cihaz saat dilimi dahil) TEK profil güncellemesiyle yazar, ardından yerel
 /// `onboarded.<userId>` bayrağını tutar. Profil yüklenmediyse `ProfileNotReadyException` fırlar
 /// (bayrak yazılmaz).
 final onboardingSaverProvider = Provider<OnboardingSaver>((ref) {
@@ -48,6 +50,14 @@ final onboardingSaverProvider = Provider<OnboardingSaver>((ref) {
     final userId = ref.read(signedInUserIdProvider);
     if (userId == null) throw StateError('Oturum yok');
     final consentedAt = ref.read(clockProvider)().toUtc().toIso8601String();
+    // Cihaz saat dilimi geçerliyse yazılır; değilse profildeki (varsayılan Europe/Istanbul) kalır.
+    String? device;
+    try {
+      device = await ref.read(deviceTimezoneProvider.future);
+    } catch (_) {
+      device = null;
+    }
+    final zone = device != null && isValidTimeZone(device) ? device : null;
     await ref
         .read(profileRepositoryProvider)
         .update(
@@ -68,6 +78,7 @@ final onboardingSaverProvider = Provider<OnboardingSaver>((ref) {
             themeFamily: data.themeFamily,
             accentColor: data.accent,
             notificationSettings: data.notificationSettings,
+            timezone: zone ?? p.timezone,
           ),
         );
     await ref.read(sharedPreferencesProvider).setBool(onboardedFlagKey(userId), true);

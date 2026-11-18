@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
@@ -8,8 +10,8 @@ class MockAuth extends Mock implements GoTrueClient {}
 
 class MockGoogle extends Mock implements GoogleCredentialSource {}
 
-User _user(List<String> providers) => User(
-  id: 'u1',
+User _user(List<String> providers, {String id = 'u1'}) => User(
+  id: id,
   appMetadata: const {},
   userMetadata: const {},
   aud: 'authenticated',
@@ -134,5 +136,75 @@ void main() {
     when(() => auth.signOut(scope: any(named: 'scope'))).thenAnswer((_) async {});
     await repo().signOut();
     verify(() => auth.signOut(scope: SignOutScope.local)).called(1);
+  });
+
+  group('I-2: Google ile yeniden doğrulama aynı hesabı doğrular', () {
+    void stubGoogle(String resultId) {
+      when(() => google.authenticate())
+          .thenAnswer((_) async => const GoogleCredentials(idToken: 'id'));
+      when(
+        () => auth.signInWithIdToken(
+          provider: any(named: 'provider'),
+          idToken: any(named: 'idToken'),
+          accessToken: any(named: 'accessToken'),
+        ),
+      ).thenAnswer((_) async => AuthResponse(user: _user(['google'], id: resultId)));
+      when(() => auth.signOut(scope: any(named: 'scope'))).thenAnswer((_) async {});
+    }
+
+    test('farklı hesap seçilirse çıkış yapılır ve AuthFailure fırlar', () async {
+      when(() => auth.currentUser).thenReturn(_user(['google']));
+      stubGoogle('baska');
+      await expectLater(
+        repo().reauthenticateWithGoogle(),
+        throwsA(isA<AuthFailure>().having((e) => e.message, 'm', googleWrongAccountMessage)),
+      );
+      verify(() => auth.signOut(scope: SignOutScope.local)).called(1);
+    });
+
+    test('kimlik belirtecindeki Google hesabı farklıysa Supabase oturumu hiç açılmaz', () async {
+      String b64(String j) => base64Url.encode(utf8.encode(j)).replaceAll('=', '');
+      final token = '${b64('{"alg":"RS256"}')}.${b64('{"sub":"g-baska"}')}.imza';
+      when(() => auth.currentUser).thenReturn(
+        User(
+          id: 'u1',
+          appMetadata: const {},
+          userMetadata: const {},
+          aud: 'authenticated',
+          createdAt: '2026-01-01T00:00:00Z',
+          identities: [
+            UserIdentity(
+              id: 'g-1',
+              userId: 'u1',
+              identityData: const {'sub': 'g-1'},
+              identityId: 'x',
+              provider: 'google',
+              createdAt: '2026-01-01T00:00:00Z',
+              lastSignInAt: '2026-01-01T00:00:00Z',
+            ),
+          ],
+        ),
+      );
+      stubGoogle('u1');
+      when(() => google.authenticate()).thenAnswer((_) async => GoogleCredentials(idToken: token));
+      await expectLater(
+        repo().reauthenticateWithGoogle(),
+        throwsA(isA<AuthFailure>().having((e) => e.message, 'm', googleWrongAccountMessage)),
+      );
+      verifyNever(
+        () => auth.signInWithIdToken(
+          provider: any(named: 'provider'),
+          idToken: any(named: 'idToken'),
+          accessToken: any(named: 'accessToken'),
+        ),
+      );
+    });
+
+    test('aynı hesapta sorunsuz biter, çıkış yapılmaz', () async {
+      when(() => auth.currentUser).thenReturn(_user(['google']));
+      stubGoogle('u1');
+      await repo().reauthenticateWithGoogle();
+      verifyNever(() => auth.signOut(scope: any(named: 'scope')));
+    });
   });
 }

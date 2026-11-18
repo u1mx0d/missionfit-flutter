@@ -15,7 +15,7 @@ import '../env.dart';
 
 // UI katmanı veri katmanını doğrudan içe aktaramaz; hata türü buradan açılır.
 export '../data/account/account_service.dart' show AccountService, DeleteAccountError;
-export '../data/auth/auth_repository.dart' show AuthFailure;
+export '../data/auth/auth_repository.dart' show AuthFailure, googleWrongAccountMessage;
 export '../data/export/export_service.dart' show ExportResult, ExportService;
 export '../data/notifications/notification_service.dart' show NotificationService, PermissionState;
 export '../data/profile/profile_repository.dart' show ProfileNotReadyException;
@@ -100,3 +100,13 @@ final deviceTimezoneProvider = FutureProvider<String?>((ref) async {
     return null;
   }
 });
+
+/// Şifre sıfırlama gibi birden çok adımlı bir kimlik işlemi sürerken true: oturum açılsa da
+/// yönlendirici kullanıcıyı bulunduğu kimlik ekranından çıkarmaz (sonuç ekranda gösterilir).
+class AuthHold extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void set(bool value) => state = value;
+}
+
+final authHoldProvider = NotifierProvider<AuthHold, bool>(AuthHold.new);

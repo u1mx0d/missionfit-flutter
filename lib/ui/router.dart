@@ -8,6 +8,8 @@ import 'auth/forgot_password_screen.dart';
 import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
 import 'auth/verify_code_screen.dart';
+import 'components/dot_grid.dart';
+import 'components/mf_button.dart';
 import 'onboarding/onboarding_flow.dart';
 import 'placeholders/coming_soon_screen.dart';
 import 'profile/profile_routes.dart';
@@ -25,12 +27,19 @@ String? redirectFor({
   required bool userReady,
   required bool profileLoading,
   required bool onboarded,
+  bool awaitingFirstPull = false,
+  bool authHold = false,
 }) {
   final isAuth = authRoutes.contains(location);
   if (!authResolved) return location == _splash ? null : _splash;
   if (!hasSession) return isAuth ? null : '/giris';
-  // Oturum var ama kullanıcı değişimi kontrolü bitmedi: sekmeleri gösterme.
-  if (!userReady || (!onboarded && profileLoading)) return location == _splash ? null : _splash;
+  // Çok adımlı kimlik işlemi (şifre sıfırlama) bitene kadar ekranda kalınır.
+  if (authHold && isAuth) return null;
+  // Oturum var ama kullanıcı değişimi kontrolü ya da (profil yokken) ilk çekme bitmedi:
+  // sekmeler ve onboarding gösterilmez; dönen kullanıcı onboarding'e düşmez.
+  if (!userReady || (!onboarded && (profileLoading || awaitingFirstPull))) {
+    return location == _splash ? null : _splash;
+  }
   if (!onboarded) return location == '/onboarding' ? null : '/onboarding';
   if (isAuth || location == '/onboarding' || location == _splash || location == '/') {
     return '/bugun';
@@ -49,6 +58,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(signedInUserIdProvider, (_, _) => refresh.poke());
   ref.listen(onboardedProvider, (_, _) => refresh.poke());
   ref.listen(profileProvider.select((p) => p.isLoading), (_, _) => refresh.poke());
+  ref.listen(awaitingFirstPullProvider, (_, _) => refresh.poke());
+  ref.listen(authHoldProvider, (_, _) => refresh.poke());
   final router = GoRouter(
     initialLocation: '/bugun',
     refreshListenable: refresh,
@@ -61,6 +72,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         userReady: ref.read(signedInUserIdProvider) != null,
         profileLoading: ref.read(profileProvider).isLoading,
         onboarded: ref.read(onboardedProvider),
+        awaitingFirstPull: ref.read(awaitingFirstPullProvider),
+        authHold: ref.read(authHoldProvider),
       );
     },
     routes: [
@@ -135,9 +148,85 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
-class _Splash extends StatelessWidget {
+/// Açılış ekranı: bekleme göstergesi; ilk çekme ya da kullanıcı kontrolü başarısızsa
+/// "Tekrar dene" ve "Çıkış yap" seçenekleri.
+class _Splash extends ConsumerStatefulWidget {
   const _Splash();
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+  ConsumerState<_Splash> createState() => _SplashState();
+}
+
+class _SplashState extends ConsumerState<_Splash> {
+  bool _busy = false;
+
+  Future<void> _do(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (e) {
+      debugPrint('Açılış işlemi başarısız: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final problem = ref.watch(startupProblemProvider);
+    if (problem == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final t = mf(context);
+    final message = switch (problem) {
+      StartupProblem.firstPullFailed =>
+        'Hesap bilgilerin alınamadı. İnternet bağlantını kontrol edip tekrar dene.',
+      StartupProblem.userCheckFailed =>
+        'Oturumun hazırlanamadı. Tekrar dene ya da çıkış yapıp yeniden giriş yap.',
+    };
+    return Scaffold(
+      body: MfBackground(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Icon(Icons.cloud_off, size: 48, color: t.textMuted),
+                    const SizedBox(height: 16),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: t.text, fontSize: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    MfButton(
+                      label: 'Tekrar dene',
+                      loading: _busy,
+                      onPressed: () => _do(ref.read(sessionRetryProvider)),
+                    ),
+                    const SizedBox(height: 8),
+                    MfButton(
+                      label: 'Çıkış yap',
+                      secondary: true,
+                      onPressed: _busy
+                          ? null
+                          : () => _do(() => ref.read(authRepositoryProvider).signOut()),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

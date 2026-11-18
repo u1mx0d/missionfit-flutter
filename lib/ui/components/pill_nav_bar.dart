@@ -30,23 +30,28 @@ class PillNavBar extends StatelessWidget {
       right: pillNavInset,
       bottom: pillNavInset + bottom,
       height: pillNavHeight,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(pillNavHeight),
-          border: Border.all(color: t.border),
-          boxShadow: const [
-            BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 4)),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              for (var i = 0; i < items.length; i++)
-                _Item(item: items[i], active: i == index, onTap: () => onTap(i)),
+      // Kabukta çubuk Scaffold dışında durur; Material olmadan metin varsayılan (sarı çift alt
+      // çizgili) hata stiliyle çizilir. Saydam Material doğru metin stilini sağlar.
+      child: Material(
+        type: MaterialType.transparency,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(pillNavHeight),
+            border: Border.all(color: t.border),
+            boxShadow: const [
+              BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 4)),
             ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  _Item(item: items[i], active: i == index, onTap: () => onTap(i)),
+              ],
+            ),
           ),
         ),
       ),

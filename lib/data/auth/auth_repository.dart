@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:google_sign_in/google_sign_in.dart';
@@ -56,6 +57,8 @@ class GoogleSignInCredentialSource implements GoogleCredentialSource {
 
 const googleNotConfiguredMessage = 'Google ile giriş bu sürümde yapılandırılmamış.';
 const googleCancelledMessage = 'Google ile giriş iptal edildi.';
+const googleWrongAccountMessage = 'Farklı bir Google hesabı seçildi. Hesap silinmedi.';
+const reauthNoSessionMessage = 'Oturum bilgisi alınamadı. Lütfen tekrar giriş yap.';
 
 class AuthRepository {
   AuthRepository(this._auth, {required this.google, required this.googleEnabled});
@@ -94,12 +97,46 @@ class AuthRepository {
   Future<void> reauthenticateWithPassword(String email, String password) =>
       _run(AuthAction.signIn, () => _auth.signInWithPassword(email: email, password: password));
 
-  Future<void> signInWithGoogle() => _googleFlow();
+  Future<void> signInWithGoogle() async {
+    await _googleFlow();
+  }
 
-  Future<void> reauthenticateWithGoogle() => _googleFlow();
+  /// Yeniden doğrulama; seçilen Google hesabı oturumdaki kullanıcı değilse yeni oturum
+  /// kapatılır ve [googleWrongAccountMessage] fırlar (hesap silme ASLA sürmemeli).
+  Future<void> reauthenticateWithGoogle() async {
+    final before = _auth.currentUser?.id;
+    if (before == null) throw const AuthFailure(reauthNoSessionMessage);
+    final googleSubs = {
+      for (final i in _auth.currentUser?.identities ?? const <UserIdentity>[])
+        if (i.provider == 'google') ...[
+          i.id,
+          if (i.identityData?['sub'] is String) i.identityData!['sub'] as String,
+        ],
+    };
+    // Önce belirteçteki Google hesabı karşılaştırılır: farklıysa başka kullanıcıya oturum hiç
+    // açılmaz (o oturum açılsaydı yerel veri kullanıcı değişimiyle silinirdi).
+    final after =
+        await _googleFlow(
+          accept: (c) {
+            final sub = googleSubject(c.idToken);
+            return googleSubs.isEmpty || sub == null || googleSubs.contains(sub);
+          },
+        ) ??
+        _auth.currentUser?.id;
+    if (after != before) {
+      try {
+        await _auth.signOut(scope: SignOutScope.local);
+      } catch (_) {
+        // Çıkış başarısız olsa da silme durdurulur.
+      }
+      throw const AuthFailure(googleWrongAccountMessage);
+    }
+  }
 
-  Future<void> _googleFlow() async {
+  /// Google ile oturum açar; açılan oturumun kullanıcı kimliğini döndürür.
+  Future<String?> _googleFlow({bool Function(GoogleCredentials c)? accept}) async {
     if (!googleEnabled) throw const AuthFailure(googleNotConfiguredMessage);
+    String? userId;
     await _run(AuthAction.signIn, () async {
       final GoogleCredentials c;
       try {
@@ -111,12 +148,16 @@ class AuthRepository {
         }
         throw const AuthFailure('Google ile giriş başarısız oldu. Lütfen tekrar dene.');
       }
-      return _auth.signInWithIdToken(
+      if (accept != null && !accept(c)) throw const AuthFailure(googleWrongAccountMessage);
+      final response = await _auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: c.idToken,
         accessToken: c.accessToken,
       );
+      userId = response.user?.id;
+      return response;
     });
+    return userId;
   }
 
   bool get hasPasswordIdentity =>
@@ -133,6 +174,20 @@ class AuthRepository {
     } catch (e) {
       throw AuthFailure(authErrorMessage(toAuthErrorInfo(e), action));
     }
+  }
+}
+
+/// Google kimlik belirtecinin (JWT) `sub` alanı; çözülemezse null. İmza burada doğrulanmaz;
+/// yalnızca yanlış hesabı erken yakalamak içindir (asıl doğrulamayı Supabase yapar).
+String? googleSubject(String idToken) {
+  try {
+    final parts = idToken.split('.');
+    if (parts.length < 2) return null;
+    final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+    final sub = payload is Map ? payload['sub'] : null;
+    return sub is String ? sub : null;
+  } catch (_) {
+    return null;
   }
 }
 

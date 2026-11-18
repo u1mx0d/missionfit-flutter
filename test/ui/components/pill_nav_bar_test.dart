@@ -50,4 +50,25 @@ void main() {
     expect(rect.left, 16);
     expect(tester.view.physicalSize.width / tester.view.devicePixelRatio - rect.right, 16);
   });
+
+  testWidgets('UI-1: Material ataası olmadan da aktif etiket altı çizili çizilmez', (tester) async {
+    // Kabukta çubuk Scaffold dışında, doğrudan bir Stack içindedir.
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildThemeData(
+          MfTheme.build(ThemeFamily.canli, Brightness.light, AccentColor.yesil),
+        ),
+        home: Stack(
+          children: [PillNavBar(index: 0, onTap: (_) {}, items: _items)],
+        ),
+      ),
+    );
+    final rich = tester.widget<RichText>(
+      find.descendant(of: find.text('Bugün'), matching: find.byType(RichText)),
+    );
+    expect(rich.text.toPlainText(), 'Bugün');
+    final style = rich.text.style!;
+    expect(style.decoration, anyOf(isNull, TextDecoration.none));
+    expect(style.color, isNot(const Color(0xd0ff0000)));
+  });
 }

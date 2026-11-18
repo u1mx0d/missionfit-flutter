@@ -8,19 +8,44 @@ import '../data/auth/secure_local_storage.dart';
 import 'providers.dart';
 
 class SessionState {
-  const SessionState({this.userId, this.syncing = false, this.lastError});
+  const SessionState({
+    this.userId,
+    this.syncing = false,
+    this.lastError,
+    this.initialPullDone = false,
+    this.initialPullFailed = false,
+    this.userCheckFailed = false,
+  });
   final String? userId;
   final bool syncing;
 
   /// Son eşitleme hatası; uygulama çevrimdışı çalışmaya devam eder.
   final Object? lastError;
 
-  SessionState copyWith({Object? userId = _keep, bool? syncing, Object? lastError = _keep}) =>
-      SessionState(
-        userId: identical(userId, _keep) ? this.userId : userId as String?,
-        syncing: syncing ?? this.syncing,
-        lastError: identical(lastError, _keep) ? this.lastError : lastError,
-      );
+  /// Bu kullanıcı için sunucudan ilk çekme başarıyla bitti mi (oturum başına).
+  final bool initialPullDone;
+
+  /// İlk çekme denendi ve başarısız oldu (henüz hiç başarılı olmadı).
+  final bool initialPullFailed;
+
+  /// Kullanıcı değişimi kontrolü başarısız oldu; `userId` null kalır, `retry` ile denenir.
+  final bool userCheckFailed;
+
+  SessionState copyWith({
+    Object? userId = _keep,
+    bool? syncing,
+    Object? lastError = _keep,
+    bool? initialPullDone,
+    bool? initialPullFailed,
+    bool? userCheckFailed,
+  }) => SessionState(
+    userId: identical(userId, _keep) ? this.userId : userId as String?,
+    syncing: syncing ?? this.syncing,
+    lastError: identical(lastError, _keep) ? this.lastError : lastError,
+    initialPullDone: initialPullDone ?? this.initialPullDone,
+    initialPullFailed: initialPullFailed ?? this.initialPullFailed,
+    userCheckFailed: userCheckFailed ?? this.userCheckFailed,
+  );
 }
 
 const Object _keep = Object();
@@ -49,6 +74,9 @@ const syncInterval = Duration(seconds: 60);
 class SessionController extends Notifier<SessionState> {
   Timer? _timer;
   String? _knownUserId;
+
+  /// Oturumdaki ama kontrolü henüz başarılamamış kullanıcı (`retry` için).
+  String? _pendingUserId;
   Future<void> _queue = Future.value();
 
   @override
@@ -77,13 +105,19 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> _handle(String? userId) async {
     if (userId == null) {
+      _pendingUserId = null;
       // Açılışta oturum yoksa silinecek bir şey yok; yalnızca açık oturumdan çıkışta temizle.
-      if (_knownUserId == null) return;
+      if (_knownUserId == null) {
+        if (state.userCheckFailed) state = const SessionState();
+        return;
+      }
       _knownUserId = null;
       await _signedOut();
       return;
     }
     if (userId == _knownUserId) return;
+    _pendingUserId = userId;
+    if (state.userCheckFailed) state = state.copyWith(userCheckFailed: false, lastError: null);
     try {
       final store = ref.read(keyValueStoreProvider);
       final db = ref.read(databaseProvider);
@@ -96,7 +130,7 @@ class SessionController extends Notifier<SessionState> {
       // Güvenli kapanış: kullanıcı doğrulanamadı, eşitleme yok; eldeki yerel veri silinir.
       debugPrint('Kullanıcı değişimi kontrolü başarısız: $e\n$st');
       _knownUserId = null;
-      state = SessionState(lastError: e);
+      state = SessionState(lastError: e, userCheckFailed: true);
       try {
         await ref.read(databaseProvider).clearAllUserData();
       } catch (e2, st2) {
@@ -105,7 +139,9 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     _knownUserId = userId;
-    state = state.copyWith(userId: userId);
+    _pendingUserId = null;
+    // Yeni kullanıcı: ilk çekme bayrakları sıfırlanır (yönlendirici buna göre bekler).
+    state = SessionState(userId: userId);
     await _sync(catalogs: true);
   }
 
@@ -129,20 +165,45 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  /// Önce gönderip çeker (profil dahil), sonra katalogları indirir. Katalog hatası çekmeyi
+  /// asla engellemez; ilk başarılı çekme `initialPullDone` olarak işaretlenir.
   Future<void> _sync({bool catalogs = false}) async {
     if (state.userId == null) return;
     state = state.copyWith(syncing: true);
+    final engine = ref.read(syncEngineProvider);
+    Object? error;
     try {
-      final engine = ref.read(syncEngineProvider);
-      if (catalogs) await engine.downloadCatalogs();
       await engine.syncNow();
-      state = state.copyWith(syncing: false, lastError: null);
+      state = state.copyWith(initialPullDone: true, initialPullFailed: false);
     } catch (e, st) {
       // Çevrimdışı açılış: hata durumda tutulur, arayüze fırlatılmaz.
       debugPrint('Eşitleme başarısız: $e\n$st');
-      state = state.copyWith(syncing: false, lastError: e);
+      error = e;
+      if (!state.initialPullDone) state = state.copyWith(initialPullFailed: true);
     }
+    if (catalogs) {
+      try {
+        await engine.downloadCatalogs();
+      } catch (e, st) {
+        debugPrint('Katalog indirme başarısız: $e\n$st');
+        error ??= e;
+      }
+    }
+    state = state.copyWith(syncing: false, lastError: error);
   }
+
+  /// Açılış ekranındaki "Tekrar dene": kullanıcı kontrolü başarısızsa onu, değilse ilk
+  /// çekmeyi yeniden dener.
+  Future<void> retry() => _enqueue(() async {
+    final pending = _pendingUserId;
+    if (state.userId == null && pending != null) {
+      await _handle(pending);
+      return;
+    }
+    if (state.userId == null) return;
+    if (!state.initialPullDone) state = state.copyWith(initialPullFailed: false);
+    await _sync(catalogs: !state.initialPullDone);
+  });
 
   /// Uygulama öne gelince her zaman eşitler.
   Future<void> onResumed() => _enqueue(_sync);

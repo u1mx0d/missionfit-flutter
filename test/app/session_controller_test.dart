@@ -96,8 +96,8 @@ void main() {
     await emit(_session('new'));
     verifyInOrder([
       () => db.clearAllUserData(),
-      () => sync.downloadCatalogs(),
       () => sync.syncNow(),
+      () => sync.downloadCatalogs(),
     ]);
     expect(store.map[SecureLocalStorage.lastUserIdKey], 'new');
   });
@@ -201,4 +201,46 @@ void main() {
     verifyInOrder([() => db.clearAllUserData(), () => sync.syncNow()]);
     expect(store.map[SecureLocalStorage.lastUserIdKey], 'b');
   });
+
+  test(
+    'I-1: katalog indirme başarısız olsa da profil çekilir (çekme kataloglardan önce)',
+    () async {
+      when(() => sync.downloadCatalogs()).thenThrow(Exception('katalog yok'));
+      await emit(_session('u'));
+      verifyInOrder([() => sync.syncNow(), () => sync.downloadCatalogs()]);
+      final s = c.read(sessionControllerProvider);
+      expect(s.initialPullDone, isTrue);
+      expect(s.initialPullFailed, isFalse);
+      expect(s.lastError, isNotNull);
+    },
+  );
+
+  test('I-1: ilk çekme başarısızsa initialPullFailed; tekrar dene başarılıysa tamam', () async {
+    when(() => sync.syncNow()).thenThrow(Exception('ağ yok'));
+    await emit(_session('u'));
+    var s = c.read(sessionControllerProvider);
+    expect(s.userId, 'u');
+    expect(s.initialPullDone, isFalse);
+    expect(s.initialPullFailed, isTrue);
+    when(() => sync.syncNow()).thenAnswer((_) async => SyncResult());
+    await c.read(sessionControllerProvider.notifier).retry();
+    s = c.read(sessionControllerProvider);
+    expect(s.initialPullDone, isTrue);
+    expect(s.initialPullFailed, isFalse);
+  });
+
+  test(
+    'I-1: kullanıcı kontrolü başarısızsa userCheckFailed; tekrar dene kullanıcıyı hazırlar',
+    () async {
+      store.readError = Exception('BadPadding');
+      await emit(_session('x'));
+      expect(c.read(sessionControllerProvider).userCheckFailed, isTrue);
+      store.readError = null;
+      await c.read(sessionControllerProvider.notifier).retry();
+      final s = c.read(sessionControllerProvider);
+      expect(s.userCheckFailed, isFalse);
+      expect(s.userId, 'x');
+      expect(s.initialPullDone, isTrue);
+    },
+  );
 }

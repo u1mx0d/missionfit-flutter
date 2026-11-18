@@ -53,3 +53,28 @@ final profileUpdaterProvider = Provider<ProfileUpdater>((ref) {
     await ref.read(profileRepositoryProvider).update(userId, change);
   };
 });
+
+/// Profil yerelde yok ve bu kullanıcı için ilk çekme henüz başarılamadı: yönlendirici
+/// onboarding'e göndermek yerine açılış ekranında bekler (dönen kullanıcı korunur).
+final awaitingFirstPullProvider = Provider<bool>((ref) {
+  if (ref.watch(signedInUserIdProvider) == null) return false;
+  if (ref.watch(sessionControllerProvider.select((s) => s.initialPullDone))) return false;
+  return ref.watch(profileProvider.select((p) => p.value == null));
+});
+
+/// Açılış ekranında "Tekrar dene / Çıkış yap" gerektiren durum.
+enum StartupProblem { userCheckFailed, firstPullFailed }
+
+final startupProblemProvider = Provider<StartupProblem?>((ref) {
+  final s = ref.watch(sessionControllerProvider);
+  if (s.userCheckFailed) return StartupProblem.userCheckFailed;
+  if (s.initialPullFailed && !s.syncing && ref.watch(awaitingFirstPullProvider)) {
+    return StartupProblem.firstPullFailed;
+  }
+  return null;
+});
+
+/// Açılış ekranındaki "Tekrar dene"; testlerde değiştirilir.
+final sessionRetryProvider = Provider<Future<void> Function()>(
+  (ref) => ref.read(sessionControllerProvider.notifier).retry,
+);

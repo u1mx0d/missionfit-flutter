@@ -10,6 +10,7 @@ import '../components/mf_card.dart';
 import 'profile_widgets.dart';
 
 const deleteConfirmWord = 'SİL';
+const unexpectedErrorMessage = 'Bir şeyler ters gitti. Lütfen tekrar dene.';
 
 const _deletedItems = [
   'Profil ve fiziksel bilgilerin',
@@ -63,6 +64,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       _error = null;
     });
     final auth = ref.read(authRepositoryProvider);
+    // Kök mesaj alanı: yanlış hesapla çıkış yapılınca ekran kapansa da mesaj görünür.
+    final messenger = ScaffoldMessenger.maybeOf(context);
     try {
       // Önce kimlik doğrulanır; başarısızsa sunucu fonksiyonu ASLA çağrılmaz.
       if (hasPassword) {
@@ -80,9 +83,15 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       if (!mounted) return;
       context.go('/giris');
     } on AuthFailure catch (e) {
+      if (e.message == googleWrongAccountMessage) {
+        messenger?.showSnackBar(SnackBar(content: Text(e.message)));
+      }
       if (mounted) setState(() => _error = e.message);
     } on DeleteAccountError catch (e) {
       if (mounted) setState(() => _error = e.message);
+    } catch (e, st) {
+      debugPrint('Hesap silme başarısız: $e\n$st');
+      if (mounted) setState(() => _error = unexpectedErrorMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

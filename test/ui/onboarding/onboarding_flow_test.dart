@@ -12,7 +12,9 @@ import 'package:missionfit/data/sync/outbox.dart';
 import 'package:missionfit/ui/onboarding/onboarding_flow.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
+import 'package:missionfit/data/auth/auth_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tz_data;
 
 class _FakeNotifications extends Fake implements NotificationService {
   int requests = 0;
@@ -23,15 +25,26 @@ class _FakeNotifications extends Fake implements NotificationService {
   }
 }
 
+class _FakeAuth extends Fake implements AuthRepository {
+  int signOuts = 0;
+  @override
+  Future<void> signOut() async => signOuts++;
+}
+
 class _Harness {
-  _Harness(this.db, this.container, this.router, this.notifications);
+  _Harness(this.db, this.container, this.router, this.notifications, this.auth);
+  final _FakeAuth auth;
   final AppDatabase db;
   final ProviderContainer container;
   final GoRouter router;
   final _FakeNotifications notifications;
 }
 
-Future<_Harness> _pump(WidgetTester tester, {bool seedProfile = true}) async {
+Future<_Harness> _pump(
+  WidgetTester tester, {
+  bool seedProfile = true,
+  String? deviceZone = 'Europe/Istanbul',
+}) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -45,12 +58,15 @@ Future<_Harness> _pump(WidgetTester tester, {bool seedProfile = true}) async {
   SharedPreferences.setMockInitialValues({});
   final sp = await SharedPreferences.getInstance();
   final notifications = _FakeNotifications();
+  final auth = _FakeAuth();
   final c = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
       sharedPreferencesProvider.overrideWithValue(sp),
       signedInUserIdProvider.overrideWithValue('u1'),
       notificationServiceProvider.overrideWithValue(notifications),
+      authRepositoryProvider.overrideWithValue(auth),
+      deviceTimezoneProvider.overrideWith((ref) async => deviceZone),
     ],
   );
   addTearDown(c.dispose);
@@ -80,7 +96,7 @@ Future<_Harness> _pump(WidgetTester tester, {bool seedProfile = true}) async {
     ),
   );
   await tester.pumpAndSettle();
-  return _Harness(db, c, router, notifications);
+  return _Harness(db, c, router, notifications, auth);
 }
 
 Future<void> _tapText(WidgetTester t, String text) async {
@@ -127,7 +143,50 @@ Future<void> _goal(WidgetTester t) async {
   await _tapText(t, 'Devam');
 }
 
+Future<void> _finishAll(WidgetTester t) async {
+  await _consent(t);
+  await _birth(t);
+  await _body(t);
+  await _goal(t);
+  await _tapText(t, 'Devam');
+  await _tapText(t, 'Şimdi değil');
+  await _tapText(t, 'Bitir');
+}
+
 void main() {
+  setUpAll(tz_data.initializeTimeZones);
+
+  testWidgets('M-1: ilk adımda Çıkış yap onaydan sonra oturumu kapatır', (tester) async {
+    final h = await _pump(tester);
+    await _tapText(tester, 'Çıkış yap');
+    expect(find.text('Çıkış yapılsın mı?'), findsOneWidget);
+    await tester.tap(find.text('Vazgeç'));
+    await tester.pumpAndSettle();
+    expect(h.auth.signOuts, 0);
+    await _tapText(tester, 'Çıkış yap');
+    await tester.tap(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('Çıkış yap')),
+    );
+    await tester.pumpAndSettle();
+    expect(h.auth.signOuts, 1);
+  });
+
+  testWidgets('D-1: geçerli cihaz saat dilimi profile yazılır', (tester) async {
+    final h = await _pump(tester, deviceZone: 'Europe/Berlin');
+    await _finishAll(tester);
+    final p = await h.db.select(h.db.profiles).getSingle();
+    expect(p.onboardingCompleted, isTrue);
+    expect(p.timezone, 'Europe/Berlin');
+  });
+
+  testWidgets('D-1: geçersiz cihaz saat diliminde Europe/Istanbul kalır', (tester) async {
+    final h = await _pump(tester, deviceZone: 'Mars/Ussu');
+    await _finishAll(tester);
+    final p = await h.db.select(h.db.profiles).getSingle();
+    expect(p.onboardingCompleted, isTrue);
+    expect(p.timezone, 'Europe/Istanbul');
+  });
+
   testWidgets('KVKK onaylanmadan ileri gidilemez', (tester) async {
     await _pump(tester);
     expect(find.text('Hoş geldin!'), findsOneWidget);

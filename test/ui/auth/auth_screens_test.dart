@@ -9,6 +9,7 @@ import 'package:missionfit/ui/auth/forgot_password_screen.dart';
 import 'package:missionfit/ui/auth/login_screen.dart';
 import 'package:missionfit/ui/auth/register_screen.dart';
 import 'package:missionfit/ui/auth/verify_code_screen.dart';
+import 'package:missionfit/ui/router.dart' show redirectFor;
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
@@ -218,5 +219,113 @@ void main() {
         expect(t.takeException(), isNull);
       });
     }
+  }
+
+  group('M-2: şifre sıfırlamada sonuç her zaman bildirilir', () {
+    Future<(GoRouter, _ResetRepo)> pumpReset(WidgetTester t, {AuthFailure? updateFailure}) async {
+      final signedIn = ValueNotifier(false);
+      final hold = ValueNotifier(0);
+      addTearDown(signedIn.dispose);
+      addTearDown(hold.dispose);
+      final repo = _ResetRepo(signedIn, updateFailure);
+      final c = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(repo),
+          envProvider.overrideWithValue(_env('')),
+        ],
+      );
+      addTearDown(c.dispose);
+      c.listen(authHoldProvider, (_, _) => hold.value++);
+      final router = GoRouter(
+        initialLocation: '/sifremi-unuttum',
+        refreshListenable: Listenable.merge([signedIn, hold]),
+        redirect: (_, s) => redirectFor(
+          location: s.uri.path,
+          authResolved: true,
+          hasSession: signedIn.value,
+          userReady: true,
+          profileLoading: false,
+          onboarded: true,
+          authHold: c.read(authHoldProvider),
+        ),
+        routes: [
+          GoRoute(path: '/giris', builder: (_, _) => const LoginScreen()),
+          GoRoute(path: '/sifremi-unuttum', builder: (_, _) => const ForgotPasswordScreen()),
+          GoRoute(
+            path: '/bugun',
+            builder: (_, _) => const Scaffold(body: Text('BUGUN')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await t.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: buildThemeData(
+              MfTheme.build(ThemeFamily.mono, Brightness.light, AccentColor.yesil),
+            ),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.enterText(_field('E-posta'), 'a@b.com');
+      await t.tap(find.text('Kod gönder'));
+      await t.pumpAndSettle();
+      await t.enterText(_field('Doğrulama kodu'), '12345678');
+      await t.enterText(_field('Yeni şifre'), 'Sifre123');
+      await t.enterText(_field('Yeni şifre tekrar'), 'Sifre123');
+      await t.tap(find.widgetWithText(FilledButton, 'Şifreyi güncelle'));
+      await t.pumpAndSettle();
+      return (router, repo);
+    }
+
+    testWidgets('kod doğrulanıp oturum açılsa da şifre güncelleme hatası ekranda kalır', (t) async {
+      final (router, repo) = await pumpReset(
+        t,
+        updateFailure: const AuthFailure('Şifre güncellenemedi.'),
+      );
+      expect(_loc(router), '/sifremi-unuttum');
+      expect(find.text('Şifre güncellenemedi.'), findsOneWidget);
+      // Tekrar denemede kod yeniden doğrulanmaz (kod tek kullanımlık).
+      repo.updateFailure = null;
+      await t.tap(find.widgetWithText(FilledButton, 'Şifreyi güncelle'));
+      await t.pumpAndSettle();
+      expect(repo.calls, ['sendReset', 'verifyReset', 'updatePassword', 'updatePassword']);
+      expect(_loc(router), '/bugun');
+      expect(find.text('Şifren güncellendi.'), findsOneWidget);
+      await t.pump(const Duration(seconds: 61));
+    });
+
+    testWidgets('başarıda "Şifren güncellendi." gösterilir ve uygulamaya geçilir', (t) async {
+      final (router, _) = await pumpReset(t);
+      expect(_loc(router), '/bugun');
+      expect(find.text('Şifren güncellendi.'), findsOneWidget);
+      await t.pump(const Duration(seconds: 61));
+    });
+  });
+}
+
+class _ResetRepo extends Fake implements AuthRepository {
+  _ResetRepo(this.signedIn, this.updateFailure);
+  final ValueNotifier<bool> signedIn;
+  AuthFailure? updateFailure;
+  final calls = <String>[];
+
+  @override
+  Future<void> sendResetCode(String email) async => calls.add('sendReset');
+  @override
+  Future<void> verifyResetCode(String email, String code) async {
+    calls.add('verifyReset');
+    signedIn.value = true;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+
+  @override
+  Future<void> updatePassword(String p) async {
+    calls.add('updatePassword');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    if (updateFailure != null) throw updateFailure!;
   }
 }

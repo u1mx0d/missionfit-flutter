@@ -9,6 +9,8 @@ import '../components/mf_button.dart';
 import '../components/mf_text_field.dart';
 import 'auth_scaffold.dart';
 
+const passwordUpdatedMessage = 'Şifren güncellendi.';
+
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -26,8 +28,29 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   String? _sentTo;
   bool _busy = false;
 
+  /// Kod doğrulandı (oturum açıldı); tekrar denemede yalnızca şifre güncellenir.
+  bool _verified = false;
+  bool _holding = false;
+  late final AuthHold _hold = ref.read(authHoldProvider.notifier);
+
+  /// Doğrulama + güncelleme bitene kadar yönlendirici bu ekranda tutulur; böylece sonuç
+  /// (hata ya da başarı) kullanıcıya her zaman gösterilir.
+  void _setHold(bool value) {
+    _holding = value;
+    _hold.set(value);
+  }
+
   @override
   void dispose() {
+    if (_holding) {
+      final hold = _hold;
+      // Ağaç kapanırken sağlayıcı değiştirilmez; bir sonraki mikro görevde bırakılır.
+      Future.microtask(() {
+        try {
+          hold.set(false);
+        } catch (_) {}
+      });
+    }
     _email.dispose();
     _code.dispose();
     _password.dispose();
@@ -77,11 +100,25 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     );
     setState(() => _errors = r.errors);
     if (!r.ok) return;
+    final messenger = ScaffoldMessenger.of(context);
     await _run(() async {
       final repo = ref.read(authRepositoryProvider);
-      await repo.verifyResetCode(_sentTo!, normalizeOtp(_code.text)!);
-      await repo.updatePassword(_password.text);
-      // Oturum açıldı; yönlendirme korumalara bırakılır.
+      _setHold(true);
+      try {
+        if (!_verified) {
+          await repo.verifyResetCode(_sentTo!, normalizeOtp(_code.text)!);
+          _verified = true;
+        }
+        await repo.updatePassword(_password.text);
+      } catch (_) {
+        // Kod doğrulanamadıysa oturum yok; tutmaya gerek kalmaz. Doğrulandıysa hata bu
+        // ekranda gösterilir ve kullanıcı yeniden deneyebilir.
+        if (!_verified) _setHold(false);
+        rethrow;
+      }
+      messenger.showSnackBar(const SnackBar(content: Text(passwordUpdatedMessage)));
+      // Oturum açık; tutma bırakılınca yönlendirme korumalara bırakılır.
+      _setHold(false);
     });
   }
 
@@ -136,7 +173,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         ],
         const SizedBox(height: 8),
         TextButton(
-          onPressed: _busy ? null : () => context.go('/giris'),
+          onPressed: _busy
+              ? null
+              : () {
+                  if (_holding) _setHold(false);
+                  context.go('/giris');
+                },
           child: Text('Girişe dön', style: TextStyle(color: t.text)),
         ),
       ],
