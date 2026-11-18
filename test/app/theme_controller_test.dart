@@ -6,7 +6,6 @@ import 'package:missionfit/app/profile_controller.dart';
 import 'package:missionfit/app/providers.dart';
 import 'package:missionfit/app/theme_controller.dart';
 import 'package:missionfit/data/db/database.dart';
-import 'package:missionfit/data/profile/profile_repository.dart';
 import 'package:missionfit/data/sync/outbox.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';

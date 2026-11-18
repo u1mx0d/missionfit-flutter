@@ -115,6 +115,20 @@ class ThemeController extends Notifier<ThemeSelection> {
     }
   }
 
+  /// Seçimi yalnızca arayüze ve yerel önbelleğe uygular; profile yazmaz (onboarding önizlemesi).
+  /// Kalıcı yazım, onboarding'in tek profil güncellemesiyle yapılır.
+  void preview({ThemeFamily? family, ThemeModeChoice? mode}) {
+    final f = family ?? state.family;
+    final customized = ref.read(sharedPreferencesProvider).getBool(accentCustomizedKey) ?? false;
+    final s = state.copyWith(
+      family: f,
+      mode: mode,
+      accent: family != null && !customized ? defaultAccentFor(f) : state.accent,
+    );
+    state = s;
+    _cache(s);
+  }
+
   Future<void> setMode(ThemeModeChoice mode) => _apply(state.copyWith(mode: mode));
 
   Future<void> setAccent(AccentColor accent) =>

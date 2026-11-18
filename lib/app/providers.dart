@@ -13,6 +13,7 @@ import '../env.dart';
 // UI katmanı veri katmanını doğrudan içe aktaramaz; hata türü buradan açılır.
 export '../data/auth/auth_repository.dart' show AuthFailure;
 export '../data/notifications/notification_service.dart' show NotificationService, PermissionState;
+export '../data/profile/profile_repository.dart' show ProfileNotReadyException;
 
 final envProvider = Provider<Env>((ref) => Env.fromEnvironment());
 

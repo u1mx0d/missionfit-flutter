@@ -9,6 +9,7 @@ import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
 import 'auth/verify_code_screen.dart';
 import 'components/dot_grid.dart';
+import 'onboarding/onboarding_flow.dart';
 import 'placeholders/coming_soon_screen.dart';
 import 'shell/app_shell.dart';
 import 'today/today_screen.dart';
@@ -71,7 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, s) => VerifyCodeScreen(email: s.uri.queryParameters['email'] ?? ''),
       ),
       GoRoute(path: '/sifremi-unuttum', builder: (_, _) => const ForgotPasswordScreen()),
-      GoRoute(path: '/onboarding', builder: (_, _) => const _Placeholder('Başlangıç')),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingFlow()),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => AppShell(navigationShell: shell),
         branches: [
