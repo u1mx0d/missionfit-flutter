@@ -84,7 +84,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       candidate = base;
     }
     if (!mounted || _draft.username.text.isNotEmpty) return;
-    setState(() => _draft.username.text = candidate);
+    _draft.username.text = candidate;
   }
 
   @override

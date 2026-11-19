@@ -59,6 +59,7 @@ Future<_Harness> _pump(
   String? deviceZone = 'Europe/Istanbul',
   GoogleProfile? google,
   Set<String> taken = const {},
+  bool deferChecks = false,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1;
@@ -74,7 +75,9 @@ Future<_Harness> _pump(
   final sp = await SharedPreferences.getInstance();
   final notifications = _FakeNotifications();
   final auth = _FakeAuth();
-  final repo = FakeIdentityRepo(db)..taken.addAll(taken);
+  final repo = FakeIdentityRepo(db)
+    ..taken.addAll(taken)
+    ..deferChecks = deferChecks;
   final picker = FakePicker();
   final c = ProviderContainer(
     overrides: [
@@ -374,6 +377,20 @@ void main() {
   });
 
   group('Profilin adımı', () {
+    testWidgets('öneri adım açıldıktan sonra gelse de kontrol edilir', (tester) async {
+      final h = await _pump(tester, deferChecks: true);
+      await _consent(tester);
+      expect(_usernameText(tester), isEmpty);
+      // Yavaş ağ: öneri cevabı "Profilin" adımı açıldıktan sonra gelir.
+      h.repo.pendingChecks.remove('sporcu')!.complete(true);
+      await tester.pump();
+      expect(_usernameText(tester), 'sporcu');
+      await tester.pump(usernameCheckDelay);
+      h.repo.pendingChecks.remove('sporcu')!.complete(true);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('username-available')), findsOneWidget);
+    });
+
     testWidgets('ad ya da kullanıcı adı boşken ilerlemez', (tester) async {
       final h = await _pump(tester);
       await _consent(tester);

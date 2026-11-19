@@ -44,16 +44,37 @@ class _UsernameFieldState extends ConsumerState<UsernameField> {
   Timer? _debounce;
   int _request = 0;
 
+  /// Son değerlendirilen değer; imleç hareketi gibi metni değiştirmeyen olaylar atlanır.
+  String? _evaluated;
+
   @override
   void initState() {
     super.initState();
     _evaluate(widget.controller.text, initial: true);
+    widget.controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(UsernameField old) {
+    super.didUpdateWidget(old);
+    if (old.controller != widget.controller) {
+      old.controller.removeListener(_onControllerChanged);
+      widget.controller.addListener(_onControllerChanged);
+      _onControllerChanged();
+    }
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
     _debounce?.cancel();
     super.dispose();
+  }
+
+  /// Metin dışarıdan (ör. öneri) değiştiğinde de uygunluk sorulur.
+  void _onControllerChanged() {
+    final value = normalizeUsername(widget.controller.text);
+    if (value != _evaluated) _evaluate(value);
   }
 
   void _set(UsernameStatus s, {String? error}) {
@@ -77,6 +98,7 @@ class _UsernameFieldState extends ConsumerState<UsernameField> {
   }
 
   void _evaluate(String value, {bool initial = false}) {
+    _evaluated = value;
     _debounce?.cancel();
     final request = ++_request;
     if (value.isEmpty) return _setLater(UsernameStatus.empty, initial);
