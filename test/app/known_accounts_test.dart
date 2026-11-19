@@ -27,6 +27,17 @@ Profile _profile({String? name = 'Ali', String createdAt = '2026-11-02T10:00:00Z
   updatedAt: createdAt,
 );
 
+class _Str extends Notifier<String?> {
+  _Str(this.initial);
+  final String? initial;
+  @override
+  String? build() => initial;
+  void set(String? v) => state = v;
+}
+
+final _emailP = NotifierProvider<_Str, String?>(() => _Str('a@b.com'));
+final _uidP = NotifierProvider<_Str, String?>(() => _Str('u1'));
+
 void main() {
   late SharedPreferences sp;
   setUp(() async {
@@ -108,17 +119,15 @@ void main() {
       addTearDown(db.close);
     });
 
-    ProviderContainer sync({
-      required StreamController<Profile?> profiles,
-      bool onboarded = true,
-      String? email = 'a@b.com',
-    }) {
+    ProviderContainer sync({required StreamController<Profile?> profiles, bool onboarded = true}) {
       final c = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(sp),
           profileProvider.overrideWith((ref) => profiles.stream),
           onboardedProvider.overrideWithValue(onboarded),
-          currentUserEmailProvider.overrideWithValue(email),
+          currentUserEmailProvider.overrideWith((ref) => ref.watch(_emailP)),
+          signedInUserIdProvider.overrideWith((ref) => ref.watch(_uidP)),
+          currentUserIdProvider.overrideWith((ref) => ref.watch(_uidP)),
           profileIdentityRepositoryProvider.overrideWithValue(FakeIdentityRepo(db)),
         ],
       );
@@ -173,6 +182,45 @@ void main() {
       await settle();
       await settle();
       expect(c.read(knownAccountsProvider).single.memberSince, isNull);
+    });
+
+    test('kullanıcı değişiminde eski profil yeni e-postayla eşleşmez', () async {
+      final profiles = StreamController<Profile?>();
+      addTearDown(profiles.close);
+      final c = sync(profiles: profiles);
+      profiles.add(_profile());
+      await settle();
+      await settle();
+      expect(c.read(knownAccountsProvider).single.email, 'a@b.com');
+
+      // B'nin e-postası ve kimliği gelir; profil hâlâ A'nın.
+      c.read(_emailP.notifier).set('b@b.com');
+      c.read(_uidP.notifier).set('u2');
+      await settle();
+      await settle();
+      final l = c.read(knownAccountsProvider);
+      expect(l.single.userId, 'u1');
+      expect(l.single.email, 'a@b.com');
+      expect(l.where((e) => e.userId == 'u1' && e.email == 'b@b.com'), isEmpty);
+    });
+
+    test('eksik memberSince sonradan tamamlanır, lastSignedInAt değişmez', () async {
+      final profiles = StreamController<Profile?>();
+      addTearDown(profiles.close);
+      final c = sync(profiles: profiles);
+      profiles.add(_profile(createdAt: 'x'));
+      await settle();
+      await settle();
+      final first = c.read(knownAccountsProvider).single;
+      expect(first.memberSince, isNull);
+
+      profiles.add(_profile());
+      await settle();
+      await settle();
+      final l = c.read(knownAccountsProvider);
+      expect(l.length, 1);
+      expect(l.single.memberSince, DateTime.utc(2026, 11, 2, 10));
+      expect(l.single.lastSignedInAt, first.lastSignedInAt);
     });
   });
 }

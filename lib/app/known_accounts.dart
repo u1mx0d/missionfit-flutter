@@ -105,6 +105,10 @@ final knownAccountSyncProvider = Provider<void>((ref) {
     final profile = ref.read(profileProvider).value;
     final email = ref.read(currentUserEmailProvider);
     if (profile == null || email == null) return;
+    // Oturum, auth ve profil ayrı kaynaklardır; kullanıcı değişiminde biri geride kalabilir.
+    // Hepsi aynı kullanıcıyı göstermiyorsa yazılmaz (yanlış e-posta başka karta işlenmesin).
+    if (profile.userId != ref.read(signedInUserIdProvider)) return;
+    if (profile.userId != ref.read(currentUserIdProvider)) return;
     final notifier = ref.read(knownAccountsProvider.notifier);
     final list = ref.read(knownAccountsProvider);
     final top = list.isEmpty ? null : list.first;
@@ -130,5 +134,7 @@ final knownAccountSyncProvider = Provider<void>((ref) {
   ref.listen(profileProvider, (_, _) => sync());
   ref.listen(onboardedProvider, (_, _) => sync());
   ref.listen(currentUserEmailProvider, (_, _) => sync());
+  ref.listen(signedInUserIdProvider, (_, _) => sync());
+  ref.listen(currentUserIdProvider, (_, _) => sync());
   sync();
 });
