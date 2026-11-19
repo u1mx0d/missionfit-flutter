@@ -25,7 +25,7 @@ const _deletedItems = [
 /// Türkçe büyük/küçük harf farkını (İ/I) yok sayan karşılaştırma anahtarı.
 String _key(String s) => s.trim().replaceAll('İ', 'i').replaceAll('I', 'i').toLowerCase();
 
-/// Hesabı kalıcı siler: onay metni, yeniden doğrulama (şifre ya da Google), sunucu fonksiyonu,
+/// Hesabı kalıcı siler: onay metni, yeniden doğrulama (şifre; şifre yoksa ya da seçilirse Google), sunucu fonksiyonu,
 /// yerel temizlik, çıkış ve `/giris`.
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
@@ -40,6 +40,9 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   String? _error;
   bool _busy = false;
 
+  /// Şifre ve Google birlikteyse kullanıcı Google'ı seçebilir; varsayılan şifredir.
+  bool _preferGoogle = false;
+
   @override
   void dispose() {
     _confirm.dispose();
@@ -47,8 +50,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     super.dispose();
   }
 
-  /// Google bağlıysa Google ile doğrulanır; şifre yalnızca Google yoksa sorulur.
-  static bool _usesPassword({required bool password, required bool google}) => password && !google;
+  /// Şifresi olan hesap şifreyle doğrulanır; yalnızca Google kimliği varsa ya da kullanıcı
+  /// Google'ı seçtiyse Google ile.
+  bool _usesPassword({required bool password, required bool google}) =>
+      password && !(google && _preferGoogle);
 
   bool get _confirmed => _key(_confirm.text) == _key(deleteConfirmWord);
 
@@ -112,10 +117,11 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
-    final hasPassword = _usesPassword(
-      password: ref.watch(hasPasswordIdentityProvider),
-      google: ref.watch(hasGoogleIdentityProvider),
-    );
+    final passwordIdentity = ref.watch(hasPasswordIdentityProvider);
+    final googleIdentity = ref.watch(hasGoogleIdentityProvider);
+    final hasPassword = _usesPassword(password: passwordIdentity, google: googleIdentity);
+    // İki yol da açıksa kullanıcı aralarında geçebilir.
+    final canSwitch = passwordIdentity && googleIdentity;
     return SubPage(
       title: 'Hesabı sil',
       children: [
@@ -188,6 +194,20 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
           Text(
             'Devam ettiğinde kimliğini Google ile yeniden doğrulayacağız.',
             style: TextStyle(color: t.textMuted),
+          ),
+        if (canSwitch)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: _busy
+                  ? null
+                  : () => setState(() {
+                      _preferGoogle = !_preferGoogle;
+                      _password.clear();
+                      _error = null;
+                    }),
+              child: Text(_preferGoogle ? 'Şifreyle doğrula' : 'Şifre yerine Google ile doğrula'),
+            ),
           ),
         InlineError(_error),
         const SizedBox(height: 16),

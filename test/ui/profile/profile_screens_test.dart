@@ -522,14 +522,34 @@ void main() {
       expect(ctx.auth.calls, ['reauth-google', 'signOut']);
       expect(ctx.account.deletes, 1);
     });
-    testWidgets('şifre ve Google birlikteyse Google ile doğrulanır, şifre sorulmaz', (t) async {
+    testWidgets('şifre ve Google birlikteyse varsayılan şifredir', (t) async {
       final ctx = await _pump(t, initial: '/profil/hesap-sil', password: true, google: true);
+      expect(_field('Onay için şifren'), findsOneWidget);
+      expect(find.text('Şifre yerine Google ile doğrula'), findsOneWidget);
+      await fill(t);
+      await t.tap(find.widgetWithText(FilledButton, 'Hesabımı kalıcı olarak sil'));
+      await t.pumpAndSettle();
+      expect(ctx.auth.calls, ['reauth-password:a@b.com', 'signOut']);
+      expect(ctx.account.deletes, 1);
+    });
+
+    testWidgets('şifre ve Google birlikteyse istenirse Google ile doğrulanır', (t) async {
+      final ctx = await _pump(t, initial: '/profil/hesap-sil', password: true, google: true);
+      await t.tap(find.text('Şifre yerine Google ile doğrula'));
+      await t.pumpAndSettle();
       expect(_field('Onay için şifren'), findsNothing);
+      expect(find.text('Şifreyle doğrula'), findsOneWidget);
       await fill(t, pw: '');
       await t.tap(find.widgetWithText(FilledButton, 'Hesabımı kalıcı olarak sil'));
       await t.pumpAndSettle();
       expect(ctx.auth.calls, ['reauth-google', 'signOut']);
       expect(ctx.account.deletes, 1);
+    });
+
+    testWidgets('yalnızca şifre kimliğinde Google seçeneği görünmez', (t) async {
+      await _pump(t, initial: '/profil/hesap-sil', password: true, google: false);
+      expect(_field('Onay için şifren'), findsOneWidget);
+      expect(find.text('Şifre yerine Google ile doğrula'), findsNothing);
     });
 
     testWidgets('I-2: farklı Google hesabı seçilirse silinmez ve mesaj gösterilir', (t) async {
