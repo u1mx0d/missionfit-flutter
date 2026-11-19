@@ -2,12 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../app/known_accounts.dart';
+import '../app/pending_signup.dart';
 import '../app/profile_controller.dart';
 import '../app/providers.dart';
 import 'auth/forgot_password_screen.dart';
 import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
 import 'auth/verify_code_screen.dart';
+import 'auth/welcome_screen.dart';
 import 'components/dot_grid.dart';
 import 'components/mf_button.dart';
 import 'onboarding/onboarding_flow.dart';
@@ -16,7 +19,7 @@ import 'profile/profile_routes.dart';
 import 'shell/app_shell.dart';
 import 'today/today_screen.dart';
 
-const authRoutes = {'/giris', '/kayit', '/dogrula', '/sifremi-unuttum'};
+const authRoutes = {'/hosgeldin', '/giris', '/kayit', '/dogrula', '/sifremi-unuttum'};
 const _splash = '/yukleniyor';
 
 /// Oturum durumundan hedef yol. null = olduğu yerde kalır.
@@ -29,10 +32,20 @@ String? redirectFor({
   required bool onboarded,
   bool awaitingFirstPull = false,
   bool authHold = false,
+  String? pendingSignupEmail,
+  bool hasKnownAccount = false,
 }) {
   final isAuth = authRoutes.contains(location);
   if (!authResolved) return location == _splash ? null : _splash;
-  if (!hasSession) return isAuth ? null : '/giris';
+  if (!hasSession) {
+    // Auth ekranları arasında gezinirken karışılmaz.
+    if (isAuth) return null;
+    // Yarım kalan kayıt > bu telefonda tanınan hesap > hoş geldin.
+    if (pendingSignupEmail != null) {
+      return '/dogrula?email=${Uri.encodeQueryComponent(pendingSignupEmail)}';
+    }
+    return hasKnownAccount ? '/giris' : '/hosgeldin';
+  }
   // Çok adımlı kimlik işlemi (şifre sıfırlama) bitene kadar ekranda kalınır.
   if (authHold && isAuth) return null;
   // Oturum var ama kullanıcı değişimi kontrolü ya da (profil yokken) ilk çekme bitmedi:
@@ -60,6 +73,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(profileProvider.select((p) => p.isLoading), (_, _) => refresh.poke());
   ref.listen(awaitingFirstPullProvider, (_, _) => refresh.poke());
   ref.listen(authHoldProvider, (_, _) => refresh.poke());
+  ref.listen(pendingSignupEmailProvider, (_, _) => refresh.poke());
+  ref.listen(knownAccountsProvider, (_, _) => refresh.poke());
   final router = GoRouter(
     initialLocation: '/bugun',
     refreshListenable: refresh,
@@ -74,10 +89,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         onboarded: ref.read(onboardedProvider),
         awaitingFirstPull: ref.read(awaitingFirstPullProvider),
         authHold: ref.read(authHoldProvider),
+        pendingSignupEmail: ref.read(pendingSignupEmailProvider),
+        hasKnownAccount: ref.read(knownAccountsProvider).isNotEmpty,
       );
     },
     routes: [
       GoRoute(path: _splash, builder: (_, _) => const _Splash()),
+      GoRoute(path: '/hosgeldin', builder: (_, _) => const WelcomeScreen()),
       GoRoute(path: '/giris', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/kayit', builder: (_, _) => const RegisterScreen()),
       GoRoute(

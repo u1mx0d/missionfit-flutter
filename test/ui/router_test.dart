@@ -96,11 +96,11 @@ class _App extends ConsumerWidget {
 String _loc(GoRouter r) => r.routerDelegate.currentConfiguration.uri.path;
 
 void main() {
-  testWidgets('oturum yokken /bugun → /giris', (tester) async {
+  testWidgets('oturum yokken /bugun → /hosgeldin', (tester) async {
     final (_, router) = await _pump(tester, signedIn: false);
     router.go('/bugun');
     await tester.pumpAndSettle();
-    expect(_loc(router), '/giris');
+    expect(_loc(router), '/hosgeldin');
   });
 
   testWidgets('oturum var ama kullanıcı doğrulanmadıysa sekmeler yerine yükleniyor', (t) async {
@@ -225,5 +225,35 @@ void main() {
     );
     expect(go(hold: true), isNull);
     expect(go(hold: false), '/bugun');
+  });
+
+  group('oturum yokken hoş geldin / giriş / kod seçimi', () {
+    String? go(String loc, {String? pending, bool known = false, bool session = false}) =>
+        redirectFor(
+          location: loc,
+          authResolved: true,
+          hasSession: session,
+          userReady: true,
+          profileLoading: false,
+          onboarded: true,
+          pendingSignupEmail: pending,
+          hasKnownAccount: known,
+        );
+
+    test('yarım kayıt kayıtlı karttan önce gelir', () {
+      expect(go('/bugun', pending: 'a@b.com', known: true), '/dogrula?email=a%40b.com');
+    });
+    test('yalnızca kayıtlı kart → /giris, hiçbiri → /hosgeldin', () {
+      expect(go('/bugun', known: true), '/giris');
+      expect(go('/bugun'), '/hosgeldin');
+    });
+    test('auth rotalarında yarım kayıt olsa da yerinde kalır', () {
+      for (final l in ['/giris', '/kayit', '/hosgeldin']) {
+        expect(go(l, pending: 'a@b.com'), isNull);
+      }
+    });
+    test('oturum var, /hosgeldin → /bugun', () {
+      expect(go('/hosgeldin', session: true), '/bugun');
+    });
   });
 }
