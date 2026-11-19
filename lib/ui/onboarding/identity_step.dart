@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../domain/username.dart';
-import '../components/mf_avatar.dart';
+import '../components/athlete_card.dart';
 import '../components/mf_text_field.dart';
 import '../profile/edit_profile_screen.dart' show AvatarBytes, AvatarChange, AvatarFromUrl;
 import '../profile/username_field.dart';
@@ -16,6 +16,7 @@ class IdentityStep extends StatelessWidget {
     required this.onPickAvatar,
     required this.onChanged,
     required this.errors,
+    this.email,
     this.ownUsername,
     this.enabled = true,
     super.key,
@@ -27,6 +28,9 @@ class IdentityStep extends StatelessWidget {
   final VoidCallback onChanged;
   final Map<String, String> errors;
 
+  /// Kartta gösterilen e-posta (oturumdan).
+  final String? email;
+
   /// Bu oturumda zaten alınmış ad; ona dönülürse sunucuya sorulmaz.
   final String? ownUsername;
   final bool enabled;
@@ -34,6 +38,7 @@ class IdentityStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = avatar;
+    final handle = normalizeUsername(username.text);
     return StepShell(
       title: 'Profilin',
       subtitle: 'Seni nasıl görelim? Fotoğraf isteğe bağlı, sonra da ekleyebilirsin.',
@@ -41,18 +46,16 @@ class IdentityStep extends StatelessWidget {
         Center(
           child: Column(
             children: [
-              GestureDetector(
-                key: const Key('identity-avatar'),
-                onTap: enabled ? onPickAvatar : null,
-                child: MfAvatar(
-                  size: 96,
-                  bytes: a is AvatarBytes ? a.bytes : null,
-                  url: a is AvatarFromUrl ? a.url : null,
-                  initials: initialsFor(
-                    displayName: displayName.text,
-                    username: username.text.isEmpty ? null : username.text,
-                  ),
+              AthleteCard(
+                mode: AthleteCardMode.active,
+                data: AthleteCardData(
+                  displayName: displayName.text,
+                  username: handle.isEmpty ? null : handle,
+                  email: email,
+                  avatarUrl: a is AvatarFromUrl ? a.url : null,
+                  avatarBytes: a is AvatarBytes ? a.bytes : null,
                 ),
+                onAvatarTap: enabled ? onPickAvatar : null,
               ),
               TextButton(
                 onPressed: enabled ? onPickAvatar : null,

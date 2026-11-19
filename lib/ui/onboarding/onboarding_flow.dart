@@ -338,6 +338,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       username: _draft.username,
       avatar: _draft.avatar,
       ownUsername: _draft.claimedUsername,
+      email: ref.watch(currentUserEmailProvider),
       onPickAvatar: _pickAvatar,
       onChanged: _touch,
       errors: _errors,

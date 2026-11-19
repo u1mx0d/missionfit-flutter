@@ -11,6 +11,7 @@ import 'package:missionfit/app/providers.dart';
 import 'package:missionfit/app/theme_controller.dart';
 import 'package:missionfit/data/db/database.dart';
 import 'package:missionfit/data/sync/outbox.dart';
+import 'package:missionfit/ui/components/athlete_card.dart';
 import 'package:missionfit/ui/onboarding/onboarding_flow.dart';
 import 'package:missionfit/ui/profile/edit_profile_screen.dart' show identityUnexpectedMessage;
 import 'package:missionfit/ui/profile/username_field.dart' show usernameCheckDelay;
@@ -497,6 +498,29 @@ void main() {
       final p = await h.db.select(h.db.profiles).getSingle();
       expect(p.displayName, 'Alperen Dağtekin');
       expect(p.avatarPath, 'u1/3.jpg');
+    });
+
+    testWidgets('Profilin adımında sporcu kartı: ad ve @kullanıcı adı canlı', (tester) async {
+      await _pump(tester);
+      await _consent(tester);
+      expect(find.byType(AthleteCard), findsOneWidget);
+      await _enter(tester, 'display-name', 'Ali Kaya');
+      await tester.pumpAndSettle(); // kart metin geçişi bitsin
+      expect(
+        find.descendant(of: find.byType(AthleteCard), matching: find.text('Ali Kaya')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: find.byType(AthleteCard), matching: find.text('@sporcu')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('karttaki fotoğrafa dokunmak kaynak sayfasını açar', (tester) async {
+      await _pump(tester);
+      await _consent(tester);
+      await _tapKey(tester, 'athlete-card-avatar');
+      expect(find.text('Galeriden seç'), findsOneWidget);
     });
 
     testWidgets('galeriden fotoğraf seçilir ve bitişte yüklenir', (tester) async {
