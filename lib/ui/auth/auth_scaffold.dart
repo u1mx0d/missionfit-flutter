@@ -1,34 +1,48 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../components/dot_grid.dart';
 import '../components/mf_button.dart';
 import '../components/mf_card.dart';
+import '../components/mf_logo.dart';
 import '../components/mf_text_field.dart';
 
 /// Tekrar gönderme bekleme süresi; testlerde değiştirilebilir.
 final resendCooldownProvider = Provider<Duration>((_) => const Duration(seconds: 60));
 
-/// Tüm kimlik doğrulama ekranlarının ortak çerçevesi: tema zemini, başlık, kart.
+/// Tüm kimlik doğrulama ekranlarının ortak çerçevesi: tema zemini, üst öğe (kart ya da
+/// küçük logo), başlık ve form kartı.
 class AuthScaffold extends StatelessWidget {
   const AuthScaffold({
     required this.title,
     required this.children,
     this.subtitle,
+    this.header,
     this.showBack = false,
+    this.onBack,
     super.key,
   });
   final String title;
   final String? subtitle;
+
+  /// Başlığın üstünde gösterilir (ör. sporcu kartı); yoksa küçük logo.
+  final Widget? header;
   final List<Widget> children;
+
+  /// Geri oku gösterilsin mi; varsayılan hedef `/hosgeldin`.
   final bool showBack;
+
+  /// Geri okunun varsayılan davranışını değiştirir (ör. üste açılmış ekranda kapat).
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
-    return Scaffold(
+    final back = onBack ?? () => context.go('/hosgeldin');
+    Widget scaffold = Scaffold(
       backgroundColor: Colors.transparent,
       body: MfBackground(
         child: SafeArea(
@@ -40,17 +54,21 @@ class AuthScaffold extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'MissionFit',
-                      style: TextStyle(
-                        fontFamily: t.displayFont,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: t.accent,
-                        letterSpacing: 1.2,
+                    if (showBack)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          tooltip: 'Geri',
+                          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                          icon: Icon(Icons.arrow_back, color: t.text),
+                          onPressed: back,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                    if (header != null)
+                      header!
+                    else
+                      const Align(alignment: Alignment.centerLeft, child: MfLogo(size: 40)),
+                    const SizedBox(height: 16),
                     Text(
                       title,
                       style: TextStyle(
@@ -79,6 +97,17 @@ class AuthScaffold extends StatelessWidget {
         ),
       ),
     );
+    // Kökten açılmış kimlik ekranında sistem geri hareketi de hoş geldin ekranına döner.
+    if (showBack && onBack == null) {
+      scaffold = PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) back();
+        },
+        child: scaffold,
+      );
+    }
+    return scaffold;
   }
 }
 
@@ -111,12 +140,14 @@ class PasswordField extends StatefulWidget {
     required this.controller,
     this.errorText,
     this.enabled = true,
+    this.autofillHints,
     super.key,
   });
   final String label;
   final TextEditingController controller;
   final String? errorText;
   final bool enabled;
+  final Iterable<String>? autofillHints;
 
   @override
   State<PasswordField> createState() => _PasswordFieldState();
@@ -132,6 +163,7 @@ class _PasswordFieldState extends State<PasswordField> {
     obscureText: _hidden,
     errorText: widget.errorText,
     enabled: widget.enabled,
+    autofillHints: widget.autofillHints,
     suffix: IconButton(
       tooltip: _hidden ? 'Şifreyi göster' : 'Şifreyi gizle',
       icon: Icon(_hidden ? Icons.visibility : Icons.visibility_off),

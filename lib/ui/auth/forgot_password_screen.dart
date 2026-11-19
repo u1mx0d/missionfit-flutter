@@ -122,12 +122,25 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     });
   }
 
+  /// Girişe dönüş: üste açıldıysa kapatılır, değilse girişe gidilir.
+  void _leave() {
+    if (_busy) return;
+    if (_holding) _setHold(false);
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/giris');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
     final second = _sentTo != null;
     return AuthScaffold(
       title: 'Şifreni sıfırla',
+      showBack: true,
+      onBack: _leave,
       subtitle: second
           ? '$_sentTo adresine gönderdiğimiz kodu ve yeni şifreni gir.'
           : 'E-postana bir sıfırlama kodu göndereceğiz.',

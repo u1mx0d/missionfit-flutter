@@ -64,27 +64,38 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return AuthScaffold(
       title: 'Hesap oluştur',
       subtitle: 'E-postana bir doğrulama kodu göndereceğiz.',
+      showBack: true,
       children: [
-        MfTextField(
-          label: 'E-posta',
-          controller: _email,
-          keyboardType: TextInputType.emailAddress,
-          errorText: _errors['email'],
-          enabled: !_busy,
-        ),
-        const SizedBox(height: 12),
-        PasswordField(
-          label: 'Şifre',
-          controller: _password,
-          errorText: _errors['password'],
-          enabled: !_busy,
-        ),
-        const SizedBox(height: 12),
-        PasswordField(
-          label: 'Şifre tekrar',
-          controller: _confirm,
-          errorText: _errors['passwordConfirm'],
-          enabled: !_busy,
+        AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MfTextField(
+                label: 'E-posta',
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                errorText: _errors['email'],
+                enabled: !_busy,
+              ),
+              const SizedBox(height: 12),
+              PasswordField(
+                label: 'Şifre',
+                controller: _password,
+                autofillHints: const [AutofillHints.newPassword],
+                errorText: _errors['password'],
+                enabled: !_busy,
+              ),
+              const SizedBox(height: 12),
+              PasswordField(
+                label: 'Şifre tekrar',
+                controller: _confirm,
+                autofillHints: const [AutofillHints.newPassword],
+                errorText: _errors['passwordConfirm'],
+                enabled: !_busy,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         AuthErrorText(_failure),

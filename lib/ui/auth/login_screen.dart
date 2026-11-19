@@ -2,9 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/known_accounts.dart';
 import '../../app/pending_signup.dart';
 import '../../app/providers.dart';
 import '../../domain/auth_rules.dart';
+import '../components/athlete_card.dart';
 import '../components/dot_grid.dart';
 import '../components/mf_button.dart';
 import '../components/mf_card.dart';
@@ -27,7 +29,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    // E-posta bir kez en son giriş yapılan hesapla doldurulur; sonra kart alanı izler.
+    final known = ref.read(knownAccountsProvider);
+    if (known.isNotEmpty) _email.text = known.first.email;
+    _email.addListener(_onEmailChanged);
+  }
+
+  void _onEmailChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _email.removeListener(_onEmailChanged);
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -75,27 +91,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final t = mf(context);
     final google = ref.watch(envProvider).googleSignInEnabled;
     final pending = ref.watch(pendingSignupEmailProvider);
+    ref.watch(knownAccountsProvider);
+    final known = ref.read(knownAccountsProvider.notifier).match(_email.text);
+    final noAnim = MediaQuery.of(context).disableAnimations;
     return AuthScaffold(
-      title: 'Hoş geldin',
-      subtitle: 'Hesabına giriş yap.',
-      children: [
-        if (pending != null) ...[
-          _PendingSignupCard(email: pending, onOpen: _goVerify),
-          const SizedBox(height: 16),
+      title: 'Hesabına giriş yap',
+      showBack: true,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Kayıtlı hesap ile örnek kart arasında kısa çapraz geçiş.
+          AnimatedSwitcher(
+            duration: noAnim ? Duration.zero : const Duration(milliseconds: 200),
+            child: known == null
+                ? const AthleteCard(key: ValueKey('sample'), mode: AthleteCardMode.sample)
+                : AthleteCard(
+                    key: ValueKey(known.userId),
+                    mode: AthleteCardMode.saved,
+                    data: AthleteCardData(
+                      displayName: known.displayName,
+                      username: known.username,
+                      email: known.email,
+                      avatarUrl: known.avatarUrl,
+                      memberSince: known.memberSince,
+                    ),
+                    onRemove: () => ref.read(knownAccountsProvider.notifier).remove(known.userId),
+                  ),
+          ),
+          if (pending != null) ...[
+            const SizedBox(height: 12),
+            _PendingSignupCard(email: pending, onOpen: _goVerify),
+          ],
         ],
-        MfTextField(
-          label: 'E-posta',
-          controller: _email,
-          keyboardType: TextInputType.emailAddress,
-          errorText: _errors['email'],
-          enabled: !_busy,
-        ),
-        const SizedBox(height: 12),
-        PasswordField(
-          label: 'Şifre',
-          controller: _password,
-          errorText: _errors['password'],
-          enabled: !_busy,
+      ),
+      children: [
+        AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MfTextField(
+                label: 'E-posta',
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                errorText: _errors['email'],
+                enabled: !_busy,
+              ),
+              const SizedBox(height: 12),
+              PasswordField(
+                label: 'Şifre',
+                controller: _password,
+                autofillHints: const [AutofillHints.password],
+                errorText: _errors['password'],
+                enabled: !_busy,
+              ),
+            ],
+          ),
         ),
         Align(
           alignment: Alignment.centerRight,

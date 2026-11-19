@@ -10,6 +10,7 @@ class MfTextField extends StatelessWidget {
     this.onChanged,
     this.suffix,
     this.enabled = true,
+    this.autofillHints,
     super.key,
   });
   final String label;
@@ -21,6 +22,9 @@ class MfTextField extends StatelessWidget {
   final Widget? suffix;
   final bool enabled;
 
+  /// Otomatik doldurma ipuçları (ör. `AutofillHints.email`).
+  final Iterable<String>? autofillHints;
+
   @override
   Widget build(BuildContext context) => TextField(
     controller: controller,
@@ -28,6 +32,7 @@ class MfTextField extends StatelessWidget {
     obscureText: obscureText,
     onChanged: onChanged,
     enabled: enabled,
+    autofillHints: autofillHints,
     decoration: InputDecoration(labelText: label, errorText: errorText, suffixIcon: suffix),
   );
 }

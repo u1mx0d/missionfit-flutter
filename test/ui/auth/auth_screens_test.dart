@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:missionfit/app/known_accounts.dart';
 import 'package:missionfit/app/pending_signup.dart';
 import 'package:missionfit/app/profile_controller.dart' show sharedPreferencesProvider;
 import 'package:missionfit/app/providers.dart';
@@ -12,6 +15,7 @@ import 'package:missionfit/ui/auth/login_screen.dart';
 import 'package:missionfit/ui/auth/register_screen.dart';
 import 'package:missionfit/ui/auth/verify_code_screen.dart';
 import 'package:missionfit/ui/auth/welcome_screen.dart';
+import 'package:missionfit/ui/components/athlete_card.dart';
 import 'package:missionfit/ui/components/mf_logo.dart';
 import 'package:missionfit/ui/router.dart' show redirectFor;
 import 'package:missionfit/ui/theme/accents.dart';
@@ -65,11 +69,15 @@ Future<GoRouter> _pump(
   ThemeFamily family = ThemeFamily.mono,
   Brightness brightness = Brightness.light,
   bool noAnim = false,
+  List<Map<String, Object?>>? knownAccounts,
 }) async {
   tester.view.physicalSize = const Size(800, 2000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  SharedPreferences.setMockInitialValues({pendingSignupKey: ?pendingEmail});
+  SharedPreferences.setMockInitialValues({
+    pendingSignupKey: ?pendingEmail,
+    if (knownAccounts != null) knownAccountsKey: jsonEncode(knownAccounts),
+  });
   _prefs = await SharedPreferences.getInstance();
   final router = GoRouter(
     initialLocation: initial,
@@ -114,9 +122,26 @@ String _loc(GoRouter r) => r.routerDelegate.currentConfiguration.uri.toString();
 
 Finder _field(String label) => find.widgetWithText(TextField, label);
 
+const _alperen = {
+  'userId': 'u1',
+  'email': 'a@b.com',
+  'displayName': 'Alperen',
+  'username': 'alperen',
+  'avatarUrl': null,
+  'memberSince': '2026-11-01T00:00:00.000Z',
+  'lastSignedInAt': '2026-11-18T00:00:00.000Z',
+};
+
+AthleteCard _card(WidgetTester t) => t.widget<AthleteCard>(find.byType(AthleteCard));
+
 void main() {
   group('hoş geldin', () {
-    double progress(WidgetTester t) => t.widget<MfLogo>(find.byType(MfLogo)).progress;
+    // Geçiş sırasında giriş ekranının kartındaki logo da ağaçta olabilir.
+    double progress(WidgetTester t) => t
+        .widget<MfLogo>(
+          find.descendant(of: find.byType(WelcomeScreen), matching: find.byType(MfLogo)),
+        )
+        .progress;
 
     testWidgets('sabit metinler ve düğmeler görünür', (t) async {
       await _pump(t, _FakeRepo(), initial: '/hosgeldin');
@@ -202,6 +227,84 @@ void main() {
       await t.pumpAndSettle();
       expect(progress(t), 1);
     });
+  });
+
+  group('giriş: sporcu kartı', () {
+    testWidgets('kayıtlı kartla e-posta dolu, kart kayıtlı ve "Tekrar hoş geldin"', (t) async {
+      await _pump(t, _FakeRepo(), knownAccounts: [_alperen]);
+      expect(t.widget<TextField>(_field('E-posta')).controller!.text, 'a@b.com');
+      expect(_card(t).mode, AthleteCardMode.saved);
+      expect(find.text('Alperen'), findsOneWidget);
+      expect(find.text('Tekrar hoş geldin'), findsOneWidget);
+    });
+
+    testWidgets('e-posta değişince kart örneğe döner, eşleşince geri gelir', (t) async {
+      await _pump(t, _FakeRepo(), knownAccounts: [_alperen]);
+      await t.enterText(_field('E-posta'), 'x@y.com');
+      await t.pumpAndSettle();
+      expect(_card(t).mode, AthleteCardMode.sample);
+      expect(find.text('MissionFit sporcusu'), findsOneWidget);
+      expect(find.text('Alperen'), findsNothing);
+      await t.enterText(_field('E-posta'), ' A@B.com ');
+      await t.pumpAndSettle();
+      expect(_card(t).mode, AthleteCardMode.saved);
+      expect(find.text('Alperen'), findsOneWidget);
+    });
+
+    testWidgets('kartı kaldırmak kaydı siler, e-posta kalır', (t) async {
+      await _pump(t, _FakeRepo(), knownAccounts: [_alperen]);
+      await t.tap(find.byKey(const Key('athlete-card-remove')));
+      await t.pumpAndSettle();
+      expect(_card(t).mode, AthleteCardMode.sample);
+      expect(t.widget<TextField>(_field('E-posta')).controller!.text, 'a@b.com');
+      expect(jsonDecode(_prefs.getString(knownAccountsKey)!), isEmpty);
+    });
+
+    testWidgets('kayıtlı kart yokken örnek kart ve boş e-posta', (t) async {
+      await _pump(t, _FakeRepo());
+      expect(_card(t).mode, AthleteCardMode.sample);
+      expect(find.byKey(const Key('athlete-card-remove')), findsNothing);
+      expect(t.widget<TextField>(_field('E-posta')).controller!.text, isEmpty);
+    });
+
+    testWidgets('bekleyen kayıt kartı sporcu kartının altında', (t) async {
+      await _pump(t, _FakeRepo(), pendingEmail: 'p@q.com', knownAccounts: [_alperen]);
+      expect(find.text('Kaydını tamamla'), findsOneWidget);
+      expect(
+        t.getTopLeft(find.text('Kaydını tamamla')).dy,
+        greaterThan(t.getBottomLeft(find.byType(AthleteCard)).dy),
+      );
+    });
+
+    testWidgets('otomatik doldurma ipuçları ve AutofillGroup', (t) async {
+      await _pump(t, _FakeRepo());
+      expect(t.widget<TextField>(_field('E-posta')).autofillHints, [AutofillHints.email]);
+      expect(t.widget<TextField>(_field('Şifre')).autofillHints, [AutofillHints.password]);
+      for (final l in ['E-posta', 'Şifre']) {
+        expect(find.ancestor(of: _field(l), matching: find.byType(AutofillGroup)), findsOneWidget);
+      }
+    });
+
+    testWidgets("geri oku /hosgeldin'e götürür", (t) async {
+      final r = await _pump(t, _FakeRepo());
+      await t.tap(find.byTooltip('Geri'));
+      await t.pumpAndSettle();
+      expect(_loc(r), '/hosgeldin');
+    });
+  });
+
+  testWidgets('kayıt: yeni şifre alanlarında newPassword ipucu', (t) async {
+    await _pump(t, _FakeRepo(), initial: '/kayit');
+    expect(t.widget<TextField>(_field('E-posta')).autofillHints, [AutofillHints.email]);
+    for (final l in ['Şifre', 'Şifre tekrar']) {
+      expect(t.widget<TextField>(_field(l)).autofillHints, [AutofillHints.newPassword]);
+    }
+  });
+
+  testWidgets('şifremi unuttum: kart yok, küçük logo var', (t) async {
+    await _pump(t, _FakeRepo(), initial: '/sifremi-unuttum');
+    expect(find.byType(AthleteCard), findsNothing);
+    expect(t.widget<MfLogo>(find.byType(MfLogo)).size, 40);
   });
 
   testWidgets('geçersiz e-postada hata metni görünür ve repository çağrılmaz', (t) async {
