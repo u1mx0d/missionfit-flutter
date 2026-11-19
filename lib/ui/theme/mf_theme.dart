@@ -19,6 +19,9 @@ enum CardStyle { flat, gradient }
 /// Kalori özeti: Canlı'da halka, Mono'da büyük nokta-matris sayı + çubuk.
 enum CalorieView { ring, bigNumberBar }
 
+/// Antrenman maketi: Mono'da nokta-matris, Canlı'da parlayan heykel.
+enum BodyMapStyle { dots, glow }
+
 ThemeFamily familyFromString(String? value) =>
     value == 'mono' ? ThemeFamily.mono : ThemeFamily.canli;
 
@@ -56,6 +59,7 @@ class MfTheme extends ThemeExtension<MfTheme> {
     required this.cardStyle,
     required this.dotGridBackground,
     required this.calorieView,
+    required this.bodyMapStyle,
   });
 
   final ThemeFamily family;
@@ -83,6 +87,7 @@ class MfTheme extends ThemeExtension<MfTheme> {
   final CardStyle cardStyle;
   final bool dotGridBackground;
   final CalorieView calorieView;
+  final BodyMapStyle bodyMapStyle;
 
   static MfTheme build(ThemeFamily family, Brightness brightness, AccentColor accent) {
     final dark = brightness == Brightness.dark;
@@ -119,11 +124,12 @@ class MfTheme extends ThemeExtension<MfTheme> {
       cardStyle: mono ? CardStyle.flat : CardStyle.gradient,
       dotGridBackground: mono,
       calorieView: mono ? CalorieView.bigNumberBar : CalorieView.ring,
+      bodyMapStyle: mono ? BodyMapStyle.dots : BodyMapStyle.glow,
     );
   }
 
   @override
-  MfTheme copyWith({Color? accent, Color? onAccent}) => MfTheme(
+  MfTheme copyWith({Color? accent, Color? onAccent, BodyMapStyle? bodyMapStyle}) => MfTheme(
     family: family,
     brightness: brightness,
     background: background,
@@ -147,6 +153,7 @@ class MfTheme extends ThemeExtension<MfTheme> {
     cardStyle: cardStyle,
     dotGridBackground: dotGridBackground,
     calorieView: calorieView,
+    bodyMapStyle: bodyMapStyle ?? this.bodyMapStyle,
   );
 
   /// Renkler ve yuvarlaklık yumuşak geçer; ayrık değerler (font, stil) yarıda değişir.
@@ -179,6 +186,7 @@ class MfTheme extends ThemeExtension<MfTheme> {
       cardStyle: half ? cardStyle : other.cardStyle,
       dotGridBackground: half ? dotGridBackground : other.dotGridBackground,
       calorieView: half ? calorieView : other.calorieView,
+      bodyMapStyle: half ? bodyMapStyle : other.bodyMapStyle,
     );
   }
 }
