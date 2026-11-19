@@ -54,55 +54,53 @@ def level_map(ids, levels):
     return lv[ids]
 
 
-def mono(shade, ids, levels, scale=3, pitch=12):
-    """Ekran ızgarası: her hücrede bir nokta. Parlaklık ışıklı görüntüden,
-    renk ve boyut bölge yoğunluğundan."""
+def mono(shade, ids, levels, scale=3, pitch=8):
+    """Ekran ızgarası: her hücrede bir nokta (adım = pitch/scale kaynak piksel).
+    Nokta boyutu ve parlaklığı ışıklı görüntünün parlaklığı × bölge seviyesinden,
+    rengi bölgeden gelir; böylece kas kabartması noktalarda da okunur."""
     h, w = ids.shape
     lum = shade[..., 0]
     alpha = shade[..., 3]
     lv = level_map(ids, levels)
-    W, H = w * scale, h * scale
-    img = Image.new("RGB", (W, H), (0, 0, 0))
+    img = Image.new("RGB", (w * scale, h * scale), (0, 0, 0))
     dr = ImageDraw.Draw(img)
     red = np.array([215, 25, 33], np.float32)
-    step = pitch / scale  # ızgara adımı (kaynak piksel)
-    ys = np.arange(step / 2, h, step)
-    xs = np.arange(step / 2, w, step)
-    for y in ys:
-        for x in xs:
+    step = pitch / scale
+    for y in np.arange(step / 2, h, step):
+        for x in np.arange(step / 2, w, step):
             iy, ix = int(y), int(x)
             if alpha[iy, ix] < 0.5:
                 continue
-            l = float(lum[iy, ix])
-            k = float(lv[iy, ix])
+            l = float(lum[iy, ix]) ** 1.3
+            k = float(lv[iy, ix]) / 3.0
             if k > 0:
-                r = pitch * (0.16 + 0.07 * k) * (0.6 + 0.4 * l)
-                c = red * (0.25 + 0.85 * min(1.0, l * 1.2))
+                r = pitch * (0.10 + 0.34 * l * (0.55 + 0.45 * k))
+                c = red * (0.35 + 0.75 * l) * (0.7 + 0.3 * k)
             else:
-                r = pitch * (0.08 + 0.22 * l)
-                g = 40 + 210 * l
+                r = pitch * (0.06 + 0.26 * l)
+                g = 30 + 200 * l
                 c = np.array([g, g, g])
-            cx, cyy = x * scale, y * scale
-            dr.ellipse([cx - r, cyy - r, cx + r, cyy + r], fill=tuple(int(v) for v in c))
+            cx, cy = x * scale, y * scale
+            dr.ellipse([cx - r, cy - r, cx + r, cy + r], fill=tuple(int(min(255, v)) for v in c))
     return np.asarray(img)
 
 
 def glow(shade, ids, levels):
-    lum = shade[..., 0]
-    a = shade[..., 3]
-    lv = level_map(ids, levels)
+    """Vurgu rengi ışıklı görüntünün parlaklığıyla çarpılır (kabartma korunur),
+    üstüne seviyeyle artan yumuşak bir ışıma eklenir."""
+    lum = shade[..., 0][..., None]
+    a = shade[..., 3][..., None]
+    t = (level_map(ids, levels) / 3.0)[..., None]
     bg = np.array([18, 18, 18], np.float32)
     green = np.array([30, 215, 96], np.float32)
-    base = np.stack([lum] * 3, -1) * np.array([200, 205, 202]) * 0.85
-    t = (lv / 3.0)[..., None]
-    lum3 = lum[..., None]
-    col = base * (1 - 0.6 * t) + green * (0.15 + 1.1 * lum3) * t * (0.55 + 0.45 * t)
-    col = col * a[..., None] + bg * (1 - a[..., None])
-    # Işıma: yoğun bölgelerin bulanık kopyası eklenir.
-    em = (lv / 3.0) * a
-    em_img = Image.fromarray((em * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(9))
-    halo = np.asarray(em_img, np.float32)[..., None] / 255.0
-    col = col + green * halo * 0.35
+    stone = np.array([205, 208, 206], np.float32) * lum * 0.8
+    lit = green * (0.12 + 1.05 * lum ** 1.6) * (0.8 + 0.25 * t)
+    col = stone * (1 - np.minimum(1.0, t * 1.6)) + lit * np.minimum(1.0, t * 1.6)
+    col = col * a + bg * (1 - a)
+    em = (t[..., 0] * shade[..., 0] * shade[..., 3])
+    halo = np.asarray(Image.fromarray((em * 255).astype(np.uint8))
+                      .filter(ImageFilter.GaussianBlur(7)), np.float32)[..., None] / 255.0
+    col = col + green * halo * 0.3
     return col.clip(0, 255).astype(np.uint8)
 
 
@@ -125,9 +123,6 @@ def main():
         else:
             t = glow(shade, ids, levels)
         tiles.append(t)
-    if a.mode == "mono":
-        tiles = [np.asarray(Image.fromarray(t).resize((t.shape[1] * 2 // 3, t.shape[0] * 2 // 3),
-                                                     Image.LANCZOS)) for t in tiles]
     out = np.concatenate(tiles, 1)
     Image.fromarray(out).save(a.out)
 

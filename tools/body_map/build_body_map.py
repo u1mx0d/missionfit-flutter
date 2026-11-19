@@ -290,6 +290,10 @@ def classify(h, joints, cfg, debug=None):
         if "chart" in rule:
             u, v = charts[rule["chart"]]
             m &= points_in_poly(u, v, rule["poly"])
+        if "clip" in rule:
+            # Ortak dış çizgi: bir bölgenin parçaları aynı düzgün sınırı paylaşır.
+            u, v = charts[rule["clip"]["chart"]]
+            m &= points_in_poly(u, v, rule["clip"]["poly"])
         if "ellipsoid" in rule:
             e = rule["ellipsoid"]
             off = np.asarray(e.get("offset", [0, 0, 0]), float)
@@ -609,6 +613,11 @@ def main():
     subdivide(h, cfg["relief"]["subdiv"])
     d, region, part = classify(h, joints, cfg, args.debug or None)
     relief(h, d, part, region, cfg)
+    # Kimlik haritası için bir kez daha alt bölünür ve bölgeler ince ağda yeniden
+    # hesaplanır: sınırlar piksel ölçeğinde düzgün eğriler olur (merdiven yok).
+    if cfg["relief"].get("id_subdiv", 0):
+        subdivide(h, cfg["relief"]["id_subdiv"])
+        _, region, _ = classify(h, joints, cfg, None)
     for g in list(h.vertex_groups):
         h.vertex_groups.remove(g)
     piv, stone_mats, id_mats, width = setup_scene(h, region, cfg, args.height)
