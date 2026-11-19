@@ -58,18 +58,21 @@ List<OutboxOp> bumpAttempts(List<OutboxOp> queue, String opId) =>
 
 final _permanent = RegExp(r'^(22|23|42)[0-9A-Z]{3}$');
 
+/// Hatanın SQLSTATE kodu ([PostgrestException] ya da `{'code': ...}`); yoksa null.
+String? errorCode(Object? error) {
+  final Object? code = switch (error) {
+    PostgrestException e => e.code,
+    Map<Object?, Object?> m => m['code'],
+    _ => null,
+  };
+  return code is String ? code : null;
+}
+
 /// Hata kalıcı mı (tekrar denemek işe yaramaz)? SQLSTATE 22 = geçersiz veri, 23 = kısıt ihlali,
 /// 42 = yetki/RLS veya sorgu hatası. Ağ, 5xx, süresi dolmuş JWT geçici sayılır.
 bool isPermanentError(Object? error) {
-  final Object? code;
-  if (error is PostgrestException) {
-    code = error.code;
-  } else if (error is Map) {
-    code = error['code'];
-  } else {
-    return false;
-  }
-  return code is String && _permanent.hasMatch(code);
+  final code = errorCode(error);
+  return code != null && _permanent.hasMatch(code);
 }
 
 /// Yeniden deneme beklemesi: 5 sn, 15 sn, 30 sn, sonra en çok 60 sn.

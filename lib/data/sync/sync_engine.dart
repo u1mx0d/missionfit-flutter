@@ -77,7 +77,7 @@ class SyncEngine {
         continue;
       }
       try {
-        await _send(op);
+        await _sendRecovering(op);
       } catch (e) {
         if (e is _UnsupportedOp || isPermanentError(e)) {
           await _drop(op, result, _describe(e));
@@ -140,6 +140,32 @@ class SyncEngine {
   String _describe(Object e) {
     if (e is Map) return '${e['code']} ${e['message'] ?? ''}'.trim();
     return e.toString();
+  }
+
+  /// [_send]; aktif oturum yazımı "kullanıcı başına tek aktif" benzersizliğine (23505)
+  /// takılırsa sunucudaki diğer aktif oturumlar (ör. başka telefonda açık kalmış, henüz
+  /// çekilmemiş) `abandoned` yapılır ve işlem bir kez yeniden denenir. Yeniden deneme de
+  /// başarısızsa hata olağan yoldan (kalıcı/geçici) işlenir. Yerel kopya sonraki çekmede eşitlenir.
+  Future<void> _sendRecovering(OutboxOp op) async {
+    try {
+      await _send(op);
+    } catch (e) {
+      final p = op.payload;
+      final userId = p['user_id'], id = p['id'];
+      if (op.type != 'workout_sessions.upsert' ||
+          p['status'] != 'active' ||
+          errorCode(e) != '23505' ||
+          userId is! String ||
+          id is! String) {
+        rethrow;
+      }
+      await _remote.abandonOtherActiveSessions(
+        userId: userId,
+        keepId: id,
+        endedAt: _clock().toUtc().toIso8601String(),
+      );
+      await _send(op);
+    }
   }
 
   Future<void> _send(OutboxOp op) async {

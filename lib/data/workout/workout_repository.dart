@@ -16,10 +16,10 @@ sealed class WorkoutFinish {
   const WorkoutFinish();
 }
 
-/// Oturum kaydedildi. Kilo bilinmiyorsa [kcal] 0'dır (sunucuya `estimated_kcal` null gider).
+/// Oturum kaydedildi. Kilo bilinmiyorsa [kcal] null'dır (sunucuya da `estimated_kcal` null).
 final class Saved extends WorkoutFinish {
   const Saved(this.kcal);
-  final int kcal;
+  final int? kcal;
 
   @override
   bool operator ==(Object other) => other is Saved && other.kcal == kcal;
@@ -364,7 +364,7 @@ class WorkoutRepository {
       ),
     );
     await (_db.delete(_db.activeWorkoutPlans)..where((t) => t.sessionId.equals(w.sessionId))).go();
-    return Saved(kcal ?? 0);
+    return Saved(kcal);
   });
 
   /// Oturumu ve setlerini siler. Sunucuda setler cascade ile silinir; outbox'ta tek

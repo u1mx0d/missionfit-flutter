@@ -5,6 +5,7 @@ import 'package:missionfit/data/db/database.dart';
 import 'package:missionfit/data/sync/outbox.dart';
 import 'package:missionfit/data/sync/outbox_queue.dart';
 import 'package:missionfit/data/sync/sync_engine.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import 'fake_remote_gateway.dart';
 
@@ -401,6 +402,123 @@ void main() {
       expect(r.dropped, 1);
       expect(r.droppedReasons.single, contains('eşitlenemedi'));
       expect(await localTaskTitles(), ['Yerel']);
+    });
+  });
+
+  group('başka telefonda açık kalan aktif oturum', () {
+    const ts = '2026-11-18T11:00:00.000Z';
+    final sessionId = uid(10), setId = uid(11), otherId = uid(9);
+
+    Map<String, Object?> sessionPayload() => {
+      'id': sessionId,
+      'user_id': user,
+      'template_id': null,
+      'name': 'Antrenman',
+      'started_at': ts,
+      'ended_at': null,
+      'local_date': '2026-11-18',
+      'week_key': '2026-11-16',
+      'estimated_kcal': null,
+      'status': 'active',
+    };
+
+    Map<String, Object?> setPayload() => {
+      'id': setId,
+      'session_id': sessionId,
+      'user_id': user,
+      'exercise_id': uid(20),
+      'exercise_order': 0,
+      'set_index': 1,
+      'reps': 10,
+      'duration_seconds': null,
+      'weight_kg': 40.0,
+      'completed_at': ts,
+    };
+
+    Future<void> seedLocal() async {
+      await db
+          .into(db.workoutSessions)
+          .insert(
+            WorkoutSessionsCompanion.insert(
+              id: sessionId,
+              userId: user,
+              startedAt: ts,
+              localDate: '2026-11-18',
+              weekKey: '2026-11-16',
+              createdAt: ts,
+              updatedAt: ts,
+            ),
+          );
+      await outbox.enqueue(upsertOp('o1', 'workout_sessions', sessionPayload()));
+      await outbox.enqueue(upsertOp('o2', 'session_sets', setPayload()));
+      // Sunucuda başka telefondan açık kalmış, yerele henüz çekilmemiş aktif oturum.
+      remote.put('workout_sessions', {
+        'id': otherId,
+        'user_id': user,
+        'status': 'active',
+        'started_at': '2026-11-18T08:00:00+00:00',
+        'ended_at': null,
+      });
+    }
+
+    PostgrestException uniqueViolation() => const PostgrestException(
+      message:
+          'duplicate key value violates unique constraint '
+          '"workout_sessions_one_active_per_user_idx"',
+      code: '23505',
+    );
+
+    test('23505: diğer aktif oturum abandoned yapılır, işlem yeniden denenir', () async {
+      await seedLocal();
+      var failures = 0;
+      remote.failSend = (t, id) =>
+          t == 'workout_sessions' && id == sessionId && failures++ == 0 ? uniqueViolation() : null;
+
+      final r = await engine.push();
+
+      expect(r.pushed, 2);
+      expect(r.dropped, 0);
+      expect(remote.abandonCalls.single.userId, user);
+      expect(remote.abandonCalls.single.keepId, sessionId);
+      expect(remote.abandonCalls.single.endedAt, '2026-11-18T12:00:00.000Z');
+      expect(remote.tables['workout_sessions']![otherId]!['status'], 'abandoned');
+      expect(remote.sent, ['workout_sessions.upsert:$sessionId', 'session_sets.upsert:$setId']);
+      expect(await outbox.pending(), isEmpty);
+      final local = await db.select(db.workoutSessions).getSingle();
+      expect(local.id, sessionId);
+      expect(local.status, 'active');
+    });
+
+    test('yeniden deneme de 23505 verirse olağan kalıcı hata yolu işler', () async {
+      await seedLocal();
+      remote.failSend = (t, id) =>
+          t == 'workout_sessions' && id == sessionId ? uniqueViolation() : null;
+
+      final r = await engine.push();
+
+      expect(remote.abandonCalls, hasLength(1));
+      expect(r.dropped, 1);
+      expect(r.droppedReasons.single, contains('workout_sessions.upsert'));
+      // Sunucuda yok -> yerelden silinir (bugünkü kalıcı hata davranışı).
+      expect(
+        await (db.select(db.workoutSessions)..where((t) => t.id.equals(sessionId))).get(),
+        isEmpty,
+      );
+      expect(remote.sent, ['session_sets.upsert:$setId']);
+    });
+
+    test('active olmayan oturumda 23505 kurtarma denenmez', () async {
+      await outbox.enqueue(
+        upsertOp('o1', 'workout_sessions', {
+          ...sessionPayload(),
+          'status': 'completed',
+          'ended_at': ts,
+        }),
+      );
+      remote.failSend = (t, id) => uniqueViolation();
+      final r = await engine.push();
+      expect(remote.abandonCalls, isEmpty);
+      expect(r.dropped, 1);
     });
   });
 }

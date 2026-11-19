@@ -33,6 +33,15 @@ abstract interface class RemoteGateway {
 
   Future<void> delete(String table, String id);
 
+  /// Kullanıcının [keepId] dışındaki `active` oturumlarını `abandoned` yapar (`ended_at` =
+  /// [endedAt]). Başka telefonda açık kalmış oturum yeni oturumu "tek aktif" kuralına
+  /// takmasın diye.
+  Future<void> abandonOtherActiveSessions({
+    required String userId,
+    required String keepId,
+    required String endedAt,
+  });
+
   /// `(updated_at, id) > (since, afterId)` olan satırlar, `(updated_at, id)` artan sırada,
   /// en çok [limit] tane. [afterId] null ise yalnızca `updated_at > since`; [since] null ise baştan.
   Future<List<Map<String, Object?>>> fetchChanged(
@@ -103,6 +112,18 @@ class SupabaseRemoteGateway implements RemoteGateway {
   @override
   Future<void> delete(String table, String id) =>
       _client.from(table).delete().eq(idColumn(table), id);
+
+  @override
+  Future<void> abandonOtherActiveSessions({
+    required String userId,
+    required String keepId,
+    required String endedAt,
+  }) => _client
+      .from('workout_sessions')
+      .update({'status': 'abandoned', 'ended_at': endedAt})
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .neq('id', keepId);
 
   @override
   Future<List<Map<String, Object?>>> fetchChanged(

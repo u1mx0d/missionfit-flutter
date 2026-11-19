@@ -254,6 +254,19 @@ void main() {
       expect(await repo.loadActive(uid), isNull);
     });
 
+    test('kilo bilinmiyorsa Saved(null) ve estimated_kcal null', () async {
+      await seedExercise(db, bench, 5);
+      var w = await startDefault();
+      w = w.logSet(await repo.completeSet(w, bench, const SetValues(weightKg: 40, reps: 10)));
+      final r = await repo.finish(w, bodyWeightKg: null);
+      expect(r, const Saved(null));
+      final row = await db.select(db.workoutSessions).getSingle();
+      expect(row.status, 'completed');
+      expect(row.estimatedKcal, isNull);
+      final op = (await outbox.pending()).firstWhere((o) => o.type == 'workout_sessions.upsert');
+      expect(op.payload['estimated_kcal'], isNull);
+    });
+
     test('setsizken oturum silinir ve DiscardedEmpty döner', () async {
       final w = await startDefault();
       final r = await repo.finish(w, bodyWeightKg: 80);

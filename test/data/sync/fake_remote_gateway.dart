@@ -54,6 +54,23 @@ class FakeRemoteGateway implements RemoteGateway {
     put(table, row);
   }
 
+  /// `abandonOtherActiveSessions` çağrıları.
+  final List<({String userId, String keepId, String endedAt})> abandonCalls = [];
+
+  @override
+  Future<void> abandonOtherActiveSessions({
+    required String userId,
+    required String keepId,
+    required String endedAt,
+  }) async {
+    abandonCalls.add((userId: userId, keepId: keepId, endedAt: endedAt));
+    for (final r in [...?tables['workout_sessions']?.values]) {
+      if (r['user_id'] == userId && r['status'] == 'active' && r['id'] != keepId) {
+        put('workout_sessions', {...r, 'status': 'abandoned', 'ended_at': endedAt});
+      }
+    }
+  }
+
   @override
   Future<void> delete(String table, String id) async {
     final error = failSend?.call(table, id);
