@@ -75,3 +75,11 @@ Modüller aynı kalıyor:
 - Kural: sunucuda yeni sütun gerektiren sürümde **önce `db push`, sonra APK**. Hedef listesine yeni anahtar eklenirse önce istemci yayınlanmalı (istemci bilinmeyen anahtarları atıp tam satır gönderiyor).
 - Telefonda deneme bekleniyor: yeni hesapla 10 adım, atla, Profil'den değiştirme, çevrimdışı değiştirme → senkron, eski hesapta "Profilini tamamla".
 - Sonraki büyük adım: **Aşama 2 (Antrenman odak modu) beyin fırtınası.**
+
+## 2026-11-19 akşam: Aşama 2a uygulaması sürüyor (KALDIĞIN YER)
+- Spec: `docs/superpowers/specs/2026-11-19-asama-2a-antrenman-design.md` (onaylı). Plan: `docs/superpowers/plans/2026-11-19-asama-2a-antrenman.md` (11 görev, subagent-driven).
+- **İlerleme defteri (önce bunu oku):** `.superpowers/sdd/2026-11-19-asama-2a-antrenman/progress.md`. Tamam: Görev 1, 2, 3, 4, 7. Görev 5 (3B maket) görseli kullanıcı ONAYLADI; betik düzeltmesi (fix round 2) ve Görev 6 (shader bileşeni) incelemesi sürüyordu. Sırada: 8, 9, 10, 11.
+- Sıra kuralı: Görev 9 (dinlenme) ve 8 (sekme) maketten sonra; aynı anda tek uygulayıcı ajan.
+- Push: kullanıcı onay verdi. Her görevin incelemesi temiz çıkınca controller push'lar (alt ajanların push'u izin denetimine takılıyor).
+- Blender 5.2.4 LTS taşınabilir: `~/.local/opt/blender/blender` (pacman veritabanı eski, `sudo pacman -Syu` kullanıcıya kaldı). MPFB eklentisi kurulu.
+- Önizleme görselleri: `.superpowers/sdd/2026-11-19-asama-2a-antrenman/preview/`.
