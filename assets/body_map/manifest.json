@@ -1,0 +1,23 @@
+{
+  "frames": 72,
+  "stepDegrees": 5,
+  "width": 360,
+  "height": 720,
+  "regions": [
+    "chest",
+    "shoulders",
+    "biceps",
+    "triceps",
+    "forearms",
+    "abs",
+    "obliques",
+    "traps",
+    "lats",
+    "lower_back",
+    "glutes",
+    "quads",
+    "hamstrings",
+    "calves"
+  ],
+  "attribution": "MakeHuman / MPFB (CC0)"
+}
