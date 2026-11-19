@@ -26,3 +26,6 @@ String turkishKey(String s) {
   }
   return b.toString();
 }
+
+/// Türkçe büyük harf: "i" → "İ", "ı" → "I" (Dart'ın `toUpperCase`'i "i"yi "I" yapar).
+String turkishUpper(String s) => s.replaceAll('i', 'İ').replaceAll('ı', 'I').toUpperCase();

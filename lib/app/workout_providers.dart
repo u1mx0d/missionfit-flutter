@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/workout/workout_queries.dart';
 import '../data/workout/workout_repository.dart';
+import '../domain/active_workout.dart';
 import '../domain/week.dart';
 import 'profile_controller.dart';
 import 'providers.dart';
@@ -38,4 +39,17 @@ final recentWorkoutsProvider = FutureProvider<List<RecentWorkout>>((ref) {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) return const [];
   return ref.watch(workoutQueriesProvider).recent(userId);
+});
+
+/// Hareketin adı, takip tipi, ekipmanı ve bölgesi (odak modu şeridi ve başlığı).
+final exerciseInfoProvider = FutureProvider.family<ExerciseOption?, String>(
+  (ref, exerciseId) async =>
+      (await ref.watch(workoutQueriesProvider).exercisesByIds([exerciseId]))[exerciseId],
+);
+
+/// Hareketin son tamamlanan antrenmandaki setleri (ön doldurma ve "Geçen sefer").
+final lastSessionSetsProvider = FutureProvider.family<List<LoggedSet>, String>((ref, exerciseId) {
+  final userId = ref.watch(signedInUserIdProvider);
+  if (userId == null) return const [];
+  return ref.watch(workoutQueriesProvider).lastSessionSets(userId, exerciseId);
 });

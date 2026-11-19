@@ -257,6 +257,18 @@ void main() {
     });
   });
 
+  group('exercisesByIds', () {
+    test('ad, takip, ekipman ve birincil kasın bölgesi', () async {
+      final m = await q.exercisesByIds(['bench', 'dips', 'yok']);
+      expect(m.keys, unorderedEquals(['bench', 'dips']));
+      expect(m['bench']!.nameTr, 'Bench Press');
+      expect(m['bench']!.region, BodyRegion.chest);
+      expect(m['dips']!.region, BodyRegion.arms);
+      expect(m['dips']!.tracking, 'reps');
+      expect(await q.exercisesByIds(const []), isEmpty);
+    });
+  });
+
   group('templatePlan', () {
     test('targetSets ve restSeconds şablondan', () async {
       await db

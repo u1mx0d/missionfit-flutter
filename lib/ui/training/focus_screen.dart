@@ -1,0 +1,421 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
+
+import '../../app/active_workout_controller.dart';
+import '../../app/profile_controller.dart';
+import '../../app/screen_awake.dart';
+import '../../app/today_provider.dart' show clockProvider;
+import '../../app/workout_providers.dart';
+import '../../domain/active_workout.dart';
+import '../../domain/feedback.dart' show regionLabels;
+import '../../domain/turkish_text.dart';
+import '../../domain/units.dart';
+import '../../domain/weight_step.dart';
+import '../components/dot_grid.dart';
+import '../theme/mf_theme.dart';
+import 'focus_sheets.dart';
+import 'focus_rail.dart';
+import 'focus_steppers.dart';
+import 'focus_widgets.dart';
+
+/// Odak modu: yalnızca o anki hareket ve set. Klavye açılmaz; değerler önceden dolu gelir,
+/// –/+ ile değişir, set tek dokunuşla tamamlanır. Ekran açık kalır.
+class FocusScreen extends ConsumerStatefulWidget {
+  const FocusScreen({super.key});
+
+  @override
+  ConsumerState<FocusScreen> createState() => _FocusScreenState();
+}
+
+class _FocusScreenState extends ConsumerState<FocusScreen> {
+  late final ScreenAwake _awake;
+  bool _busy = false;
+  bool _askingFinish = false;
+
+  ActiveWorkoutController get _ctl => ref.read(activeWorkoutControllerProvider.notifier);
+
+  @override
+  void initState() {
+    super.initState();
+    _awake = ref.read(screenAwakeProvider);
+    unawaited(_awake.enable());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_awake.disable());
+    super.dispose();
+  }
+
+  WeightUnit get _unit => ref.read(profileProvider).value?.units ?? WeightUnit.kg;
+
+  /// Taslak > ön doldurma (bu antrenmandaki son set, yoksa geçen seferin seti).
+  SetValues _valuesFor(ActiveWorkout w, String exerciseId) =>
+      ref.read(focusDraftsProvider)[exerciseId] ??
+      prefill(exerciseId, w, ref.read(lastSessionSetsProvider(exerciseId)).value ?? const []);
+
+  void _change(ActiveWorkout w, String exerciseId, SetValues Function(SetValues) f) {
+    // Basılı tutarken her adım son değeri okur.
+    final latest = ref.read(activeWorkoutControllerProvider).value ?? w;
+    ref.read(focusDraftsProvider.notifier).put(exerciseId, f(_valuesFor(latest, exerciseId)));
+  }
+
+  Future<void> _complete(PlannedExercise p, SetValues v) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final duration = p.tracking == 'duration';
+      await _ctl.completeSet(
+        SetValues(
+          weightKg: tracksWeight(p.tracking, p.equipment) ? v.weightKg : null,
+          reps: duration ? null : v.reps,
+          durationSeconds: duration ? v.durationSeconds : null,
+        ),
+      );
+      unawaited(HapticFeedback.lightImpact());
+      ref.read(onSetCompletedProvider)(p.exerciseId);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Set kaydedildi.'),
+          duration: const Duration(seconds: 5),
+          persist: false,
+          action: SnackBarAction(label: 'Geri al', onPressed: () => unawaited(_ctl.undoLast())),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(const SnackBar(content: Text('Set kaydedilemedi. Tekrar dene.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _edit(ActiveWorkout w, PlannedExercise p, LoggedSet s, int number) async {
+    final r = await showSetEditor(
+      context,
+      set: s,
+      number: number,
+      plan: p,
+      unit: _unit,
+      clock: ref.read(clockProvider),
+    );
+    switch (r) {
+      case SetEditSave(:final set):
+        await _ctl.editSet(set);
+      case SetEditDelete():
+        await _ctl.deleteSet(s);
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _add(ActiveWorkout w) async {
+    final e = await Navigator.of(context).push<ExerciseOption>(
+      MaterialPageRoute(
+        builder: (_) => ExerciseSearchPage(inPlan: {for (final p in w.plan) p.exerciseId}),
+      ),
+    );
+    if (e == null || !mounted) return;
+    final cur = ref.read(activeWorkoutControllerProvider).value ?? w;
+    if (cur.plan.any((p) => p.exerciseId == e.id)) return _ctl.select(e.id);
+    final last = await ref.read(lastSessionSetsProvider(e.id).future);
+    await _ctl.addExercise(
+      PlannedExercise(
+        exerciseId: e.id,
+        tracking: e.tracking,
+        equipment: e.equipment,
+        targetSets: targetSetsFor(lastSessionSetCount: last.isEmpty ? null : last.length),
+        restSeconds: 90,
+      ),
+    );
+  }
+
+  Future<void> _showList(ActiveWorkout w, List<RailItem> items) async {
+    final id = await showExerciseList(
+      context,
+      items: items,
+      currentId: w.currentExerciseId,
+      progress: {
+        for (final p in w.plan) p.exerciseId: '${w.doneSets(p.exerciseId)}/${p.targetSets}',
+      },
+    );
+    if (id != null) await _ctl.select(id);
+  }
+
+  Future<void> _confirmFinish() async {
+    final w = ref.read(activeWorkoutControllerProvider).value;
+    if (w == null) {
+      context.go('/antrenman');
+      return;
+    }
+    if (_askingFinish) return;
+    _askingFinish = true;
+    final n = w.sets.length;
+    final yes = await showFinishDialog(context, setCount: n);
+    _askingFinish = false;
+    if (yes != true || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final WorkoutFinish r;
+    try {
+      r = await _ctl.finish();
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Antrenman bitirilemedi. Tekrar dene.')));
+      return;
+    }
+    messenger.hideCurrentSnackBar();
+    router.go('/antrenman');
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(switch (r) {
+          Saved() => 'Antrenman kaydedildi.',
+          DiscardedEmpty() => 'Hiç set yok, antrenman kaydedilmedi.',
+        }),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(activeWorkoutControllerProvider);
+    final w = state.value;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_confirmFinish());
+      },
+      child: Scaffold(
+        body: MfBackground(
+          child: SafeArea(
+            child: w != null
+                // Tablette ve yatayda içerik okunur genişlikte ortalanır.
+                ? Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: _body(w),
+                    ),
+                  )
+                : state.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : NoActiveWorkout(onBack: () => context.go('/antrenman')),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(ActiveWorkout w) {
+    final t = mf(context);
+    ref.watch(focusDraftsProvider);
+    final names = {
+      for (final p in w.plan) p.exerciseId: ref.watch(exerciseInfoProvider(p.exerciseId)).value,
+    };
+    final items = [
+      for (final p in w.plan)
+        RailItem(
+          id: p.exerciseId,
+          name: names[p.exerciseId]?.nameTr ?? '…',
+          complete: w.doneSets(p.exerciseId) >= p.targetSets,
+        ),
+    ];
+    final index = w.plan.indexWhere((p) => p.exerciseId == w.currentExerciseId);
+    final p = index < 0 ? null : w.plan[index];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FocusTopBar(
+            startedAt: w.startedAt,
+            onClose: _confirmFinish,
+            onList: w.plan.isEmpty ? null : () => _showList(w, items),
+          ),
+          const SizedBox(height: 8),
+          if (p != null) ...[
+            ExerciseProgress(done: [for (final it in items) it.complete], current: index),
+            const SizedBox(height: 14),
+            Expanded(
+              child: SingleChildScrollView(child: _exercise(w, p, index, names[p.exerciseId])),
+            ),
+          ] else
+            Expanded(
+              child: Center(
+                child: Text(
+                  'Başlamak için aşağıdan hareket ekle.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: t.textMuted, fontSize: 16),
+                ),
+              ),
+            ),
+          if (p != null) _cta(w, p),
+          const SizedBox(height: 12),
+          ExerciseRail(
+            items: items,
+            currentId: w.currentExerciseId,
+            onSelect: (id) => _ctl.select(id),
+            onAdd: () => _add(w),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _exercise(ActiveWorkout w, PlannedExercise p, int index, ExerciseOption? info) {
+    final t = mf(context);
+    final mono = t.family == ThemeFamily.mono;
+    final id = p.exerciseId;
+    final last = ref.watch(lastSessionSetsProvider(id)).value ?? const <LoggedSet>[];
+    final unit = ref.watch(profileProvider.select((x) => x.value?.units)) ?? WeightUnit.kg;
+    final v = _valuesFor(w, id);
+    final done = w.sets.where((s) => s.exerciseId == id).toList()
+      ..sort((a, b) => a.setIndex.compareTo(b.setIndex));
+    final weight = tracksWeight(p.tracking, p.equipment);
+    final duration = p.tracking == 'duration';
+    final r = info?.region == null ? null : regionLabels[info!.region]!;
+    final region = r == null ? null : turkishUpper(r.substring(0, 1)) + r.substring(1);
+    final caption = 'Hareket ${index + 1}/${w.plan.length}${region == null ? '' : ' · $region'}';
+    final setNo = done.length >= p.targetSets ? done.length : done.length + 1;
+    final setCaption = 'Set $setNo/${p.targetSets}';
+    final name = info?.nameTr ?? '…';
+
+    String fmt(LoggedSet s) {
+      if (duration) return formatSeconds(s.durationSeconds ?? 0);
+      if (weight && s.weightKg != null) {
+        return '${formatAmount(fromKg(s.weightKg!, unit))} × ${s.reps ?? '–'}';
+      }
+      return '${s.reps ?? '–'}';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          mono ? turkishUpper(caption) : caption,
+          style: TextStyle(
+            color: t.textMuted,
+            fontSize: mono ? 11 : 12,
+            letterSpacing: mono ? 1.5 : 0,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          mono ? turkishUpper(name) : name,
+          key: const Key('exercise-title'),
+          style: TextStyle(
+            fontFamily: t.displayFont,
+            color: t.text,
+            fontSize: 28,
+            height: 1.1,
+            fontWeight: mono ? FontWeight.w700 : FontWeight.w900,
+            letterSpacing: mono ? 0.4 : -0.6,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: SetDots(
+                done: done,
+                target: p.targetSets,
+                onEdit: (s) => _edit(w, p, s, done.indexOf(s) + 1),
+                onAddSet: _canAddSet(w, id) ? () => _ctl.addTargetSet(id) : null,
+              ),
+            ),
+            Text(
+              mono ? turkishUpper(setCaption) : setCaption,
+              style: TextStyle(color: t.textMuted, fontSize: 12, letterSpacing: mono ? 1.4 : 0),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (weight)
+          ValueStepper(
+            valueKey: const Key('value-weight'),
+            valueText: v.weightKg == null ? null : formatAmount(fromKg(v.weightKg!, unit)),
+            unit: unit.name,
+            noun: 'ağırlığı',
+            onStep: (d) => _change(
+              w,
+              id,
+              (x) => SetValues(
+                weightKg: nextWeight(x.weightKg, d, p.equipment, unit),
+                reps: x.reps,
+                durationSeconds: x.durationSeconds,
+              ),
+            ),
+          ),
+        if (duration)
+          DurationField(
+            key: ValueKey('duration-$id'),
+            seconds: v.durationSeconds,
+            clock: ref.read(clockProvider),
+            onChanged: (s) => ref
+                .read(focusDraftsProvider.notifier)
+                .put(id, SetValues(weightKg: v.weightKg, reps: v.reps, durationSeconds: s)),
+          )
+        else
+          ValueStepper(
+            valueKey: const Key('value-reps'),
+            valueText: v.reps?.toString(),
+            unit: 'tekrar',
+            noun: 'tekrarı',
+            onStep: (d) => _change(
+              w,
+              id,
+              (x) => SetValues(
+                weightKg: x.weightKg,
+                reps: nextReps(x.reps, d),
+                durationSeconds: x.durationSeconds,
+              ),
+            ),
+          ),
+        const SizedBox(height: 8),
+        LastTimeNote(
+          text: last.isEmpty
+              ? 'İlk kez: değerleri –/+ ile gir.'
+              : 'Geçen sefer: ${last.map(fmt).join(' · ')}',
+          trend: last.isNotEmpty,
+        ),
+      ],
+    );
+  }
+
+  bool _canAddSet(ActiveWorkout w, String id) {
+    try {
+      w.nextSetIndex(id);
+      return true;
+    } on StateError {
+      return false;
+    }
+  }
+
+  String? _nextExercise(ActiveWorkout w) {
+    try {
+      return w.nextUp()?.exerciseId;
+    } on StateError {
+      return null;
+    }
+  }
+
+  Widget _cta(ActiveWorkout w, PlannedExercise p) {
+    final v = _valuesFor(w, p.exerciseId);
+    final full = w.doneSets(p.exerciseId) >= p.targetSets;
+    final next = full ? _nextExercise(w) : null;
+    final valid = p.tracking == 'duration'
+        ? (v.durationSeconds ?? 0) >= 1
+        : v.reps != null && (!tracksWeight(p.tracking, p.equipment) || v.weightKg != null);
+
+    final (String label, VoidCallback? onTap) = !full
+        ? ('Seti tamamla', valid && !_busy ? () => _complete(p, v) : null)
+        : next != null
+        ? ('Sıradaki hareket', () => unawaited(_ctl.select(next)))
+        : ('Bitir', () => unawaited(_confirmFinish()));
+    return FocusCta(label: label, onPressed: onTap);
+  }
+}

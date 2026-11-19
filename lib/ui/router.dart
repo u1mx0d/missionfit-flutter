@@ -18,6 +18,7 @@ import 'placeholders/coming_soon_screen.dart';
 import 'profile/profile_routes.dart';
 import 'shell/app_shell.dart';
 import 'today/today_screen.dart';
+import 'training/training_routes.dart';
 
 const authRoutes = {'/hosgeldin', '/giris', '/kayit', '/dogrula', '/sifremi-unuttum'};
 const _splash = '/yukleniyor';
@@ -104,6 +105,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/sifremi-unuttum', builder: (_, _) => const ForgotPasswordScreen()),
       GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingFlow()),
+      // Kabuğun dışında: odak modunda alt bar görünmez.
+      ...trainingRoutes,
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => AppShell(navigationShell: shell),
         branches: [

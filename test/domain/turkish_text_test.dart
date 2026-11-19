@@ -18,4 +18,10 @@ void main() {
   test('baştaki/sondaki boşluk atılır', () {
     expect(turkishKey('  Şınav '), 'sinav');
   });
+
+  test('turkishUpper: i → İ, ı → I', () {
+    expect(turkishUpper('Dips'), 'DİPS');
+    expect(turkishUpper('şınav ılık'), 'ŞINAV ILIK');
+    expect(turkishUpper('Bench Press'), 'BENCH PRESS');
+  });
 }

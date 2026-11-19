@@ -60,6 +60,7 @@ class ExerciseOption {
     required this.tracking,
     required this.equipment,
     this.lastDoneAt,
+    this.region,
   });
 
   final String id;
@@ -67,6 +68,9 @@ class ExerciseOption {
   final String tracking;
   final String equipment;
   final DateTime? lastDoneAt;
+
+  /// Birincil kasın üst bölgesi (yalnızca [WorkoutQueries.exercisesByIds] doldurur).
+  final BodyRegion? region;
 }
 
 /// Antrenman sekmesinin okuma sorguları (yazım: `WorkoutRepository`).
@@ -271,6 +275,32 @@ class WorkoutQueries {
         if (turkishKey(e.nameTr).contains(key) || turkishKey(e.nameEn).contains(key))
           _option(e, const {}),
     ];
+  }
+
+  /// Verilen hareketler (aktif olmayanlar da): ad, takip, ekipman ve birincil kasın bölgesi.
+  Future<Map<String, ExerciseOption>> exercisesByIds(Iterable<String> ids) async {
+    final idList = ids.toSet();
+    if (idList.isEmpty) return const {};
+    final exercises = await (_db.select(_db.exercises)..where((e) => e.id.isIn(idList))).get();
+    final em = _db.exerciseMuscles;
+    final mg = _db.muscleGroups;
+    final rows = await (_db.select(em).join([
+      innerJoin(mg, mg.id.equalsExp(em.muscleGroupId)),
+    ])..where(em.exerciseId.isIn(idList) & em.role.equals('primary'))).get();
+    final regionOf = <String, BodyRegion>{};
+    for (final r in rows) {
+      regionOf.putIfAbsent(r.read(em.exerciseId)!, () => _region(r.read(mg.bodyRegion)!));
+    }
+    return {
+      for (final e in exercises)
+        e.id: ExerciseOption(
+          id: e.id,
+          nameTr: e.nameTr,
+          tracking: e.tracking,
+          equipment: e.equipment,
+          region: regionOf[e.id],
+        ),
+    };
   }
 
   Future<List<PlannedExercise>> templatePlan(String templateId) async {
