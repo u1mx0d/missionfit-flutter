@@ -61,6 +61,14 @@ Ekranda ana tarzın listesi önce, yan tarzlarınki ardından gösterilir (tekra
 - **Eksik profil:** Onboarding'i bitirmiş ama `training_style` boş hesaplarda profil başlığındaki "Profilini tamamla" görünür ve tarz ekranına da götürür.
 - ui-ux-pro-max kuralları: dokunma alanı ≥ 48 dp, kontrast ≥ 4.5:1 (her iki tema, açık/koyu), emoji yerine ikon, seçimde görsel + metin geri bildirim (yalnızca renk değil: rozet/onay işareti).
 
+## Sonraki tasarıma taşınan kural (öneriler — kullanıcının kararı)
+
+Öneriler bu işin kapsamında değil, ama Antrenman sayfası/Aşama 4 tasarımı şuna uymalı:
+
+- Öneri **ana tarza uygun** hareket olmalı. "İtiş zayıf" → calisthenics: dips, pike push-up; vücut geliştirme: incline dumbbell press, göğüs press makinesi; güç: close-grip bench, overhead press. Tarzına uymayan hareket önerilmez (bodybuilder'a "dips yap" denmez).
+- **Geçmişe dayalı basit algoritma:** önce kişinin son haftalarda yaptığı ve zayıf alanı çalıştıran hareketler (ör. "bench'e bir set ekle / ağırlığı artır"); yalnızca yoksa tarzına uygun, hiç yapmadığı bir hareket kısa açıklamayla ("yeni bir hareket dene").
+- Gereken: egzersiz kataloğunda her hareketin **tarz(lar)** ve **alan** (push/pull/legs/core/mobility/conditioning) etiketi.
+
 ## Kurucuya kalanlar
 
 - İkonların tam seçimi (Material Symbols içinden), metinlerin son hali.
