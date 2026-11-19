@@ -211,6 +211,78 @@ void main() {
       expect(m.containsKey('avatar_path'), isFalse);
     });
 
+    test('fromServer ana tarzı ve tekrarları yan tarzlardan çıkarır', () {
+      final p = Profile.fromServer({
+        'user_id': 'u1',
+        'training_style': 'calisthenics',
+        'side_styles': ['calisthenics', 'functional', 'functional'],
+      })!;
+      expect(p.sideStyles, [TrainingStyle.functional]);
+    });
+
+    test('copyWith ana tarzı değiştirince yan tarzlardan çıkarır', () {
+      final p = Profile.fromServer({
+        'user_id': 'u1',
+        'training_style': 'strength',
+        'side_styles': ['functional'],
+      })!;
+      expect(p.copyWith(trainingStyle: TrainingStyle.functional).sideStyles, isEmpty);
+    });
+
+    test('toPayload ana tarzı side_styles içinde asla göndermez', () {
+      final p = Profile(
+        userId: 'u1',
+        createdAt: 'x',
+        updatedAt: 'x',
+        trainingStyle: TrainingStyle.general,
+        sideStyles: [TrainingStyle.general, TrainingStyle.strength],
+      );
+      expect(p.toPayload()['side_styles'], ['strength']);
+      expect(p.toCompanion().sideStyles.value, '["strength"]');
+    });
+
+    test('boş profil yükü: tarz null, listeler boş', () {
+      final m = Profile(userId: 'u1', createdAt: 'x', updatedAt: 'x').toPayload();
+      expect(m['training_style'], isNull);
+      expect(m['training_level'], isNull);
+      expect(m['side_styles'], isEmpty);
+      expect(m['goal_moves'], isEmpty);
+      expect(m['focus_areas'], isEmpty);
+    });
+
+    test('fromRow JSON metnindeki bilinmeyen değeri atar ve normalize eder', () async {
+      await seed(db);
+      await (db.update(db.profiles)..where((t) => t.userId.equals('u1'))).write(
+        const ProfilesCompanion(
+          trainingStyle: Value('strength'),
+          sideStyles: Value('["strength","yoga","general"]'),
+          goalMoves: Value('["bench_up","nope"]'),
+          focusAreas: Value('["core","zzz"]'),
+        ),
+      );
+      final p = await ProfileRepository(db, OutboxRepository(db)).watch('u1').first;
+      expect(p!.sideStyles, [TrainingStyle.general]);
+      expect(p.goalMoves, ['bench_up']);
+      expect(p.focusAreas, [FocusArea.core]);
+    });
+
+    test('copyWith dokunulmayan yeni alanları korur', () {
+      final p = Profile.fromServer({
+        'user_id': 'u1',
+        'training_style': 'strength',
+        'side_styles': ['general'],
+        'training_level': 'advanced',
+        'goal_moves': ['bench_up'],
+        'focus_areas': ['core'],
+      })!;
+      final q = p.copyWith(displayName: 'Ali');
+      expect(q.trainingStyle, TrainingStyle.strength);
+      expect(q.sideStyles, [TrainingStyle.general]);
+      expect(q.trainingLevel, TrainingLevel.advanced);
+      expect(q.goalMoves, ['bench_up']);
+      expect(q.focusAreas, [FocusArea.core]);
+    });
+
     test('update outbox a tek kayıt yazar ve yerelde saklar', () async {
       await seed(db);
       final outbox = OutboxRepository(db);

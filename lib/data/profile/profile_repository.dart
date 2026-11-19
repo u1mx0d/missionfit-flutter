@@ -39,6 +39,12 @@ List<T> _enumList<T extends Enum>(List<T> values, Object? raw) {
   ];
 }
 
+/// Yan tarzlardan ana tarzı ve tekrarları çıkarır (sunucu ana tarzın yan tarzda geçmesini reddeder).
+List<TrainingStyle> _normalizeSides(TrainingStyle? main, List<TrainingStyle> sides) => [
+  for (final s in sides.toSet())
+    if (s != main) s,
+];
+
 /// Hedef hareket anahtarları; [goalMoveLabels] dışındakiler atılır.
 List<String> _goalMoveList(Object? raw) {
   final decoded = raw is String ? _tryDecode(raw) : raw;
@@ -136,6 +142,7 @@ class Profile {
 
   factory Profile.fromRow(d.Profile r) {
     final ns = _tryDecode(r.notificationSettings);
+    final style = _byName(TrainingStyle.values, r.trainingStyle);
     return Profile(
       userId: r.userId,
       displayName: r.displayName,
@@ -161,8 +168,8 @@ class Profile {
       updatedAt: r.updatedAt,
       username: r.username,
       avatarPath: r.avatarPath,
-      trainingStyle: _byName(TrainingStyle.values, r.trainingStyle),
-      sideStyles: _enumList(TrainingStyle.values, r.sideStyles),
+      trainingStyle: style,
+      sideStyles: _normalizeSides(style, _enumList(TrainingStyle.values, r.sideStyles)),
       trainingLevel: _byName(TrainingLevel.values, r.trainingLevel),
       goalMoves: _goalMoveList(r.goalMoves),
       focusAreas: _enumList(FocusArea.values, r.focusAreas),
@@ -197,7 +204,7 @@ class Profile {
     'username': username,
     'avatar_path': avatarPath,
     'training_style': trainingStyle?.name,
-    'side_styles': [for (final s in sideStyles) s.name],
+    'side_styles': [for (final s in _normalizeSides(trainingStyle, sideStyles)) s.name],
     'training_level': trainingLevel?.name,
     'goal_moves': List<String>.of(goalMoves),
     'focus_areas': [for (final f in focusAreas) f.name],
@@ -211,6 +218,7 @@ class Profile {
     double? dbl(String k) => m[k] is num ? (m[k]! as num).toDouble() : null;
     int? integer(String k) => m[k] is num ? (m[k]! as num).toInt() : null;
     final now = DateTime.now().toUtc().toIso8601String();
+    final style = _byName(TrainingStyle.values, str('training_style'));
     return Profile(
       userId: userId,
       displayName: str('display_name'),
@@ -240,8 +248,8 @@ class Profile {
       updatedAt: str('updated_at') ?? now,
       username: str('username'),
       avatarPath: str('avatar_path'),
-      trainingStyle: _byName(TrainingStyle.values, str('training_style')),
-      sideStyles: _enumList(TrainingStyle.values, m['side_styles']),
+      trainingStyle: style,
+      sideStyles: _normalizeSides(style, _enumList(TrainingStyle.values, m['side_styles'])),
       trainingLevel: _byName(TrainingLevel.values, str('training_level')),
       goalMoves: _goalMoveList(m['goal_moves']),
       focusAreas: _enumList(FocusArea.values, m['focus_areas']),
@@ -281,7 +289,9 @@ class Profile {
     username: Value(username),
     avatarPath: Value(avatarPath),
     trainingStyle: Value(trainingStyle?.name),
-    sideStyles: Value(jsonEncode([for (final s in sideStyles) s.name])),
+    sideStyles: Value(
+      jsonEncode([for (final s in _normalizeSides(trainingStyle, sideStyles)) s.name]),
+    ),
     trainingLevel: Value(trainingLevel?.name),
     goalMoves: Value(jsonEncode(goalMoves)),
     focusAreas: Value(jsonEncode([for (final f in focusAreas) f.name])),
@@ -311,43 +321,46 @@ class Profile {
     Object? trainingLevel = _keep,
     List<String>? goalMoves,
     List<FocusArea>? focusAreas,
-  }) => Profile(
-    userId: userId,
-    displayName: identical(displayName, _keep) ? this.displayName : displayName as String?,
-    heightCm: identical(heightCm, _keep) ? this.heightCm : heightCm as double?,
-    weightKg: identical(weightKg, _keep) ? this.weightKg : weightKg as double?,
-    birthYear: identical(birthYear, _keep) ? this.birthYear : birthYear as int?,
-    sex: identical(sex, _keep) ? this.sex : sex as Sex?,
-    activityLevel: identical(activityLevel, _keep)
-        ? this.activityLevel
-        : activityLevel as ActivityLevel?,
-    goal: identical(goal, _keep) ? this.goal : goal as Goal?,
-    calorieTarget: identical(calorieTarget, _keep) ? this.calorieTarget : calorieTarget as int?,
-    calorieTargetIsManual: calorieTargetIsManual ?? this.calorieTargetIsManual,
-    units: units ?? this.units,
-    weekStartsOn: weekStartsOn ?? this.weekStartsOn,
-    timezone: timezone ?? this.timezone,
-    theme: theme ?? this.theme,
-    accent: accent,
-    themeFamily: themeFamily ?? this.themeFamily,
-    accentColor: accentColor ?? this.accentColor,
-    notificationSettings: notificationSettings ?? this.notificationSettings,
-    onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
-    consentedAt: identical(consentedAt, _keep) ? this.consentedAt : consentedAt as String?,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    username: username,
-    avatarPath: avatarPath,
-    trainingStyle: identical(trainingStyle, _keep)
+  }) {
+    final style = identical(trainingStyle, _keep)
         ? this.trainingStyle
-        : trainingStyle as TrainingStyle?,
-    sideStyles: sideStyles ?? this.sideStyles,
-    trainingLevel: identical(trainingLevel, _keep)
-        ? this.trainingLevel
-        : trainingLevel as TrainingLevel?,
-    goalMoves: goalMoves ?? this.goalMoves,
-    focusAreas: focusAreas ?? this.focusAreas,
-  );
+        : trainingStyle as TrainingStyle?;
+    return Profile(
+      userId: userId,
+      displayName: identical(displayName, _keep) ? this.displayName : displayName as String?,
+      heightCm: identical(heightCm, _keep) ? this.heightCm : heightCm as double?,
+      weightKg: identical(weightKg, _keep) ? this.weightKg : weightKg as double?,
+      birthYear: identical(birthYear, _keep) ? this.birthYear : birthYear as int?,
+      sex: identical(sex, _keep) ? this.sex : sex as Sex?,
+      activityLevel: identical(activityLevel, _keep)
+          ? this.activityLevel
+          : activityLevel as ActivityLevel?,
+      goal: identical(goal, _keep) ? this.goal : goal as Goal?,
+      calorieTarget: identical(calorieTarget, _keep) ? this.calorieTarget : calorieTarget as int?,
+      calorieTargetIsManual: calorieTargetIsManual ?? this.calorieTargetIsManual,
+      units: units ?? this.units,
+      weekStartsOn: weekStartsOn ?? this.weekStartsOn,
+      timezone: timezone ?? this.timezone,
+      theme: theme ?? this.theme,
+      accent: accent,
+      themeFamily: themeFamily ?? this.themeFamily,
+      accentColor: accentColor ?? this.accentColor,
+      notificationSettings: notificationSettings ?? this.notificationSettings,
+      onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      consentedAt: identical(consentedAt, _keep) ? this.consentedAt : consentedAt as String?,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      username: username,
+      avatarPath: avatarPath,
+      trainingStyle: style,
+      sideStyles: _normalizeSides(style, sideStyles ?? this.sideStyles),
+      trainingLevel: identical(trainingLevel, _keep)
+          ? this.trainingLevel
+          : trainingLevel as TrainingLevel?,
+      goalMoves: goalMoves ?? this.goalMoves,
+      focusAreas: focusAreas ?? this.focusAreas,
+    );
+  }
 }
 
 const Object _keep = Object();
