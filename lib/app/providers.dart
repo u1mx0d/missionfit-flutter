@@ -80,14 +80,17 @@ final currentUserEmailProvider = Provider<String?>(
 );
 
 /// Şifre kimliği (e-posta) var mı; yoksa (yalnızca Google) şifre değiştirme gösterilmez.
-final hasPasswordIdentityProvider = Provider<bool>(
-  (ref) => ref.watch(authRepositoryProvider).hasPasswordIdentity,
-);
+/// Oturum her değiştiğinde yeniden okunur; yoksa önceki hesabın kimlikleri kalır.
+final hasPasswordIdentityProvider = Provider<bool>((ref) {
+  ref.watch(authStateProvider);
+  return ref.watch(authRepositoryProvider).hasPasswordIdentity;
+});
 
-/// Hesaba Google bağlıysa yeniden doğrulama Google ile yapılır (şifre hatırlanmayabilir).
-final hasGoogleIdentityProvider = Provider<bool>(
-  (ref) => ref.watch(authRepositoryProvider).hasGoogleIdentity,
-);
+/// Hesaba Google bağlı mı (hesap silmede şifre yerine seçilebilir). Oturumla yenilenir.
+final hasGoogleIdentityProvider = Provider<bool>((ref) {
+  ref.watch(authStateProvider);
+  return ref.watch(authRepositoryProvider).hasGoogleIdentity;
+});
 
 final profileIdentityRepositoryProvider = Provider<ProfileIdentityRepository>(
   (ref) => DefaultProfileIdentityRepository(
