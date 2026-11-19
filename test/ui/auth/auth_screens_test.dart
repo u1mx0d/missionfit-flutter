@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -70,6 +71,7 @@ Future<GoRouter> _pump(
   Brightness brightness = Brightness.light,
   bool noAnim = false,
   List<Map<String, Object?>>? knownAccounts,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(800, 2000);
   tester.view.devicePixelRatio = 1;
@@ -99,6 +101,7 @@ Future<GoRouter> _pump(
         authRepositoryProvider.overrideWithValue(repo),
         envProvider.overrideWithValue(_env(google)),
         sharedPreferencesProvider.overrideWithValue(_prefs),
+        ...overrides,
       ],
       child: MaterialApp.router(
         routerConfig: router,
@@ -301,6 +304,135 @@ void main() {
     }
   });
 
+  group('kayıt: dolan sporcu kartı', () {
+    testWidgets('açılışta kart boş', (t) async {
+      await _pump(t, _FakeRepo(), initial: '/kayit');
+      expect(_card(t).mode, AthleteCardMode.empty);
+      expect(find.text('Kartımı oluştur'), findsOneWidget);
+    });
+
+    testWidgets('geçerli e-posta yazılınca kartta görünür, hata gösterilmez', (t) async {
+      await _pump(t, _FakeRepo(), initial: '/kayit');
+      await t.enterText(_field('E-posta'), 'a@b');
+      await t.pumpAndSettle();
+      expect(_card(t).mode, AthleteCardMode.empty);
+      expect(find.text('Geçerli bir e-posta adresi gir.'), findsNothing);
+      await t.enterText(_field('E-posta'), ' a@b.com ');
+      await t.pumpAndSettle();
+      expect(_card(t).mode, AthleteCardMode.filling);
+      expect(_card(t).data.email, 'a@b.com');
+      expect(
+        find.descendant(of: find.byType(AthleteCard), matching: find.text('a@b.com')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('kurallara uyan şifre ve tekrarı eşleşince "✓ Şifre"', (t) async {
+      await _pump(t, _FakeRepo(), initial: '/kayit');
+      await t.enterText(_field('E-posta'), 'a@b.com');
+      await t.enterText(_field('Şifre'), 'Sifre123');
+      await t.pumpAndSettle();
+      expect(_card(t).data.passwordOk, isFalse);
+      await t.enterText(_field('Şifre tekrar'), 'Sifre123');
+      await t.pumpAndSettle();
+      expect(_card(t).data.passwordOk, isTrue);
+      expect(find.text('✓ Şifre'), findsOneWidget);
+      await t.enterText(_field('Şifre'), 'kisa1');
+      await t.enterText(_field('Şifre tekrar'), 'kisa1');
+      await t.pumpAndSettle();
+      expect(_card(t).data.passwordOk, isFalse);
+    });
+  });
+
+  group('kod: sporcu kartı ve AKTİF', () {
+    ProviderContainer container(WidgetTester t) =>
+        ProviderScope.containerOf(t.element(find.byType(VerifyCodeScreen)));
+
+    testWidgets('kart "KOD BEKLENİYOR" ve e-posta gösterir; geri oku var', (t) async {
+      await _pump(t, _FakeRepo(), initial: '/dogrula?email=a%40b.com');
+      expect(_card(t).mode, AthleteCardMode.awaitingCode);
+      expect(find.text('KOD BEKLENİYOR'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(AthleteCard), matching: find.text('a@b.com')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Geri'), findsOneWidget);
+      await t.pump(const Duration(seconds: 61));
+    });
+
+    testWidgets('başarıda AKTİF, bekleme boyunca authHold açık, sonra kapanır', (t) async {
+      final repo = _FakeRepo();
+      await _pump(t, repo, initial: '/dogrula?email=a%40b.com', pendingEmail: 'a@b.com');
+      expect(container(t).read(authHoldProvider), isFalse);
+      await t.enterText(_field('Doğrulama kodu'), '123456');
+      await t.tap(find.widgetWithText(FilledButton, 'Doğrula'));
+      await t.pump();
+      expect(container(t).read(authHoldProvider), isTrue);
+      await t.pump(const Duration(milliseconds: 150));
+      expect(_card(t).mode, AthleteCardMode.active);
+      expect(find.text('AKTİF'), findsOneWidget);
+      expect(container(t).read(authHoldProvider), isTrue);
+      expect(_prefs.getString(pendingSignupKey), isNull);
+      await t.pump(const Duration(milliseconds: 400));
+      expect(container(t).read(authHoldProvider), isTrue);
+      await t.pump(const Duration(milliseconds: 400));
+      expect(container(t).read(authHoldProvider), isFalse);
+      await t.pump(const Duration(seconds: 61));
+    });
+
+    testWidgets('bekleme süresi sağlayıcıdan okunur', (t) async {
+      expect(activeStampHold, const Duration(milliseconds: 700));
+      await _pump(
+        t,
+        _FakeRepo(),
+        initial: '/dogrula?email=a%40b.com',
+        overrides: [activeStampHoldProvider.overrideWithValue(const Duration(milliseconds: 50))],
+      );
+      await t.enterText(_field('Doğrulama kodu'), '123456');
+      await t.tap(find.widgetWithText(FilledButton, 'Doğrula'));
+      await t.pump(const Duration(milliseconds: 120));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(container(t).read(authHoldProvider), isFalse);
+      await t.pump(const Duration(seconds: 61));
+    });
+
+    testWidgets('bekleme sürerken ekran kapanırsa authHold yine kapanır', (t) async {
+      final router = await _pump(
+        t,
+        _FakeRepo(),
+        initial: '/dogrula?email=a%40b.com',
+        overrides: [activeStampHoldProvider.overrideWithValue(const Duration(seconds: 5))],
+      );
+      final c = container(t);
+      await t.enterText(_field('Doğrulama kodu'), '123456');
+      await t.tap(find.widgetWithText(FilledButton, 'Doğrula'));
+      await t.pump(const Duration(milliseconds: 150));
+      expect(c.read(authHoldProvider), isTrue);
+      router.go('/giris');
+      // Bekleme süresi (5 sn) dolmadan ekran kapanır.
+      await t.pump();
+      await t.pump(const Duration(seconds: 1));
+      expect(find.byType(VerifyCodeScreen), findsNothing);
+      expect(c.read(authHoldProvider), isFalse);
+      await t.pump(const Duration(seconds: 61));
+    });
+
+    testWidgets('başarısızlıkta hata gösterilir, authHold kapanır, kart kod bekler', (t) async {
+      final repo = _FakeRepo()..failure = const AuthFailure('Kod hatalı.');
+      await _pump(t, repo, initial: '/dogrula?email=a%40b.com', pendingEmail: 'a@b.com');
+      await t.enterText(_field('Doğrulama kodu'), '123456');
+      await t.tap(find.widgetWithText(FilledButton, 'Doğrula'));
+      await t.pump();
+      expect(container(t).read(authHoldProvider), isTrue);
+      await t.pumpAndSettle();
+      expect(find.text('Kod hatalı.'), findsOneWidget);
+      expect(container(t).read(authHoldProvider), isFalse);
+      expect(_card(t).mode, AthleteCardMode.awaitingCode);
+      expect(_prefs.getString(pendingSignupKey), 'a@b.com');
+      await t.pump(const Duration(seconds: 61));
+    });
+  });
+
   testWidgets('şifremi unuttum: kart yok, küçük logo var', (t) async {
     await _pump(t, _FakeRepo(), initial: '/sifremi-unuttum');
     expect(find.byType(AthleteCard), findsNothing);
@@ -324,7 +456,7 @@ void main() {
     await t.enterText(_field('E-posta'), 'a@b.com');
     await t.enterText(_field('Şifre'), 'Sifre123');
     await t.enterText(_field('Şifre tekrar'), 'Sifre124');
-    await t.tap(find.text('Kayıt ol').first);
+    await t.tap(find.text('Kartımı oluştur'));
     await t.pumpAndSettle();
     expect(find.text('Şifreler eşleşmiyor.'), findsOneWidget);
     expect(repo.calls, isEmpty);
@@ -336,7 +468,7 @@ void main() {
     await t.enterText(_field('E-posta'), 'a@b.com');
     await t.enterText(_field('Şifre'), 'Sifre123');
     await t.enterText(_field('Şifre tekrar'), 'Sifre123');
-    await t.tap(find.text('Kayıt ol').first);
+    await t.tap(find.text('Kartımı oluştur'));
     await t.pumpAndSettle();
     expect(repo.calls, ['signUp:a@b.com']);
     expect(_loc(router), '/dogrula?email=a%40b.com');
