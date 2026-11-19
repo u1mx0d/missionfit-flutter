@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/known_accounts.dart';
+import '../../app/profile_controller.dart';
 import '../../app/providers.dart';
 import '../auth/auth_scaffold.dart';
 import '../components/dot_grid.dart';
@@ -79,7 +81,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       } else {
         await auth.reauthenticateWithGoogle();
       }
+      final userId = ref.read(signedInUserIdProvider);
       await ref.read(accountServiceProvider).deleteAccount();
+      // Hesap artık yok; telefondaki sporcu kartı da silinir.
+      if (userId != null) await ref.read(knownAccountsProvider.notifier).remove(userId);
       try {
         // Kullanıcı sunucuda yok artık; yalnızca yerel oturum kapatılır.
         await auth.signOut();

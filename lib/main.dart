@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
+import 'app/known_accounts.dart';
 import 'app/profile_controller.dart';
 import 'app/providers.dart';
 import 'data/notifications/notification_service.dart';
@@ -74,6 +75,7 @@ class _MissionFitAppState extends ConsumerState<MissionFitApp> {
   @override
   Widget build(BuildContext context) {
     ref.watch(sessionControllerProvider);
+    ref.watch(knownAccountSyncProvider);
     final sel = ref.watch(themeControllerProvider);
     final router = ref.watch(routerProvider);
     return MaterialApp.router(

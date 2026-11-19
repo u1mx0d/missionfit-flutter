@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:missionfit/app/known_accounts.dart';
 import 'package:missionfit/app/profile_controller.dart' hide Profile;
 import 'package:missionfit/app/providers.dart';
 import 'package:missionfit/app/theme_controller.dart';
@@ -128,7 +131,15 @@ Future<_Ctx> _pump(
               calorieTarget: const Value(2000),
             ),
       );
-  SharedPreferences.setMockInitialValues({});
+  SharedPreferences.setMockInitialValues({
+    knownAccountsKey: jsonEncode([
+      KnownAccount(
+        userId: 'u1',
+        email: 'a@b.com',
+        lastSignedInAt: DateTime.utc(2026, 1, 1),
+      ).toJson(),
+    ]),
+  });
   final sp = await SharedPreferences.getInstance();
   final auth = _FakeAuth(password: password);
   final account = _FakeAccount();
@@ -253,6 +264,7 @@ void main() {
       await t.tap(find.widgetWithText(TextButton, 'Çıkış yap'));
       await t.pumpAndSettle();
       expect(ctx.auth.calls, ['signOut']);
+      expect(ctx.container.read(knownAccountsProvider).map((a) => a.userId), ['u1']); // kart kalır
     });
 
     testWidgets('birim ve hafta başlangıcı profile yazılır', (t) async {
@@ -361,6 +373,7 @@ void main() {
       expect(ctx.auth.calls, ['reauth-password:a@b.com', 'signOut']);
       expect(ctx.account.deletes, 1);
       expect(find.text('GİRİŞ'), findsOneWidget);
+      expect(ctx.container.read(knownAccountsProvider), isEmpty);
     });
 
     testWidgets('yalnızca Google kimliğinde Google ile yeniden doğrulanır', (t) async {
