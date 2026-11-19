@@ -11,6 +11,8 @@ import 'package:missionfit/ui/auth/forgot_password_screen.dart';
 import 'package:missionfit/ui/auth/login_screen.dart';
 import 'package:missionfit/ui/auth/register_screen.dart';
 import 'package:missionfit/ui/auth/verify_code_screen.dart';
+import 'package:missionfit/ui/auth/welcome_screen.dart';
+import 'package:missionfit/ui/components/mf_logo.dart';
 import 'package:missionfit/ui/router.dart' show redirectFor;
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
@@ -62,6 +64,7 @@ Future<GoRouter> _pump(
   String google = '',
   ThemeFamily family = ThemeFamily.mono,
   Brightness brightness = Brightness.light,
+  bool noAnim = false,
 }) async {
   tester.view.physicalSize = const Size(800, 2000);
   tester.view.devicePixelRatio = 1;
@@ -71,6 +74,7 @@ Future<GoRouter> _pump(
   final router = GoRouter(
     initialLocation: initial,
     routes: [
+      GoRoute(path: '/hosgeldin', builder: (_, _) => const WelcomeScreen()),
       GoRoute(path: '/giris', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/kayit', builder: (_, _) => const RegisterScreen()),
       GoRoute(
@@ -90,11 +94,19 @@ Future<GoRouter> _pump(
       ],
       child: MaterialApp.router(
         routerConfig: router,
+        builder: noAnim
+            ? (c, w) =>
+                  MediaQuery(data: MediaQuery.of(c).copyWith(disableAnimations: true), child: w!)
+            : null,
         theme: buildThemeData(MfTheme.build(family, brightness, AccentColor.yesil)),
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (noAnim) {
+    await tester.pump();
+  } else {
+    await tester.pumpAndSettle();
+  }
   return router;
 }
 
@@ -103,6 +115,95 @@ String _loc(GoRouter r) => r.routerDelegate.currentConfiguration.uri.toString();
 Finder _field(String label) => find.widgetWithText(TextField, label);
 
 void main() {
+  group('hoş geldin', () {
+    double progress(WidgetTester t) => t.widget<MfLogo>(find.byType(MfLogo)).progress;
+
+    testWidgets('sabit metinler ve düğmeler görünür', (t) async {
+      await _pump(t, _FakeRepo(), initial: '/hosgeldin');
+      expect(find.text('MISSIONFIT'), findsOneWidget);
+      expect(find.text('Her gün bir görev. Her set bir adım.'), findsOneWidget);
+      expect(find.text('E-posta ile kayıt ol'), findsOneWidget);
+      expect(find.text('Hesabın var mı? Giriş yap'), findsOneWidget);
+      expect(find.text('Google ile devam et'), findsNothing);
+    });
+
+    testWidgets('E-posta ile kayıt ol /kayit açar', (t) async {
+      final r = await _pump(t, _FakeRepo(), initial: '/hosgeldin');
+      await t.tap(find.text('E-posta ile kayıt ol'));
+      await t.pumpAndSettle();
+      expect(_loc(r), '/kayit');
+    });
+
+    testWidgets('Hesabın var mı? /giris açar', (t) async {
+      final r = await _pump(t, _FakeRepo(), initial: '/hosgeldin');
+      await t.tap(find.text('Hesabın var mı? Giriş yap'));
+      await t.pumpAndSettle();
+      expect(_loc(r), '/giris');
+    });
+
+    testWidgets('Google açıkken signInWithGoogle çağrılır', (t) async {
+      final repo = _FakeRepo();
+      await _pump(t, repo, initial: '/hosgeldin', google: 'cid');
+      await t.tap(find.text('Google ile devam et'));
+      await t.pumpAndSettle();
+      expect(repo.calls, ['google']);
+    });
+
+    testWidgets('Google hatası gösterilir', (t) async {
+      final repo = _FakeRepo()
+        ..failure = const AuthFailure('Google ile giriş yapılamadı.', code: 'google_failed');
+      await _pump(t, repo, initial: '/hosgeldin', google: 'cid');
+      await t.tap(find.text('Google ile devam et'));
+      await t.pumpAndSettle();
+      expect(find.text('Google ile giriş yapılamadı.'), findsOneWidget);
+    });
+
+    testWidgets('animasyon kapalıyken ilk karede her şey hazır', (t) async {
+      await _pump(t, _FakeRepo(), initial: '/hosgeldin', noAnim: true);
+      expect(progress(t), 1);
+      expect(find.text('E-posta ile kayıt ol'), findsOneWidget);
+      expect(t.widget<FadeTransition>(find.byType(FadeTransition).last).opacity.value, 1);
+    });
+
+    testWidgets('ikinci gelişte animasyon tekrar oynamaz', (t) async {
+      final r = await _pump(t, _FakeRepo(), initial: '/hosgeldin');
+      expect(progress(t), 1);
+      r.go('/giris');
+      await t.pumpAndSettle();
+      r.go('/hosgeldin');
+      await t.pump();
+      await t.pump();
+      expect(progress(t), 1);
+    });
+
+    testWidgets('ilk gelişte animasyon sürerken progress < 1', (t) async {
+      t.view.physicalSize = const Size(800, 2000);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      SharedPreferences.setMockInitialValues({});
+      _prefs = await SharedPreferences.getInstance();
+      await t.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(_FakeRepo()),
+            envProvider.overrideWithValue(_env('')),
+            sharedPreferencesProvider.overrideWithValue(_prefs),
+          ],
+          child: MaterialApp(
+            theme: buildThemeData(
+              MfTheme.build(ThemeFamily.mono, Brightness.light, AccentColor.yesil),
+            ),
+            home: const WelcomeScreen(),
+          ),
+        ),
+      );
+      await t.pump(const Duration(milliseconds: 300));
+      expect(progress(t), lessThan(1));
+      await t.pumpAndSettle();
+      expect(progress(t), 1);
+    });
+  });
+
   testWidgets('geçersiz e-postada hata metni görünür ve repository çağrılmaz', (t) async {
     final repo = _FakeRepo();
     await _pump(t, repo);
