@@ -24,7 +24,7 @@ final workoutQueriesProvider = Provider<WorkoutQueries>(
 /// Bu haftanın maketi: profilin hafta başlangıcı ve saat dilimine göre, günün tarihiyle yenilenir.
 final weeklyBodyMapProvider = StreamProvider<WeeklyBodyMap>((ref) {
   final userId = ref.watch(currentUserIdProvider);
-  if (userId == null) return const Stream.empty();
+  if (userId == null) return Stream.value(WeeklyBodyMap.empty);
   final weekStartsOn =
       ref.watch(profileProvider.select((p) => p.value?.weekStartsOn)) ?? WeekStartsOn.monday;
   final today = ref.watch(todayProvider.select((t) => t.date));

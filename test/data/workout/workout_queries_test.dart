@@ -79,9 +79,10 @@ void main() {
       ('shoulders', 'secondary'),
     ]);
     await ex('dips', 'Dips', 'reps', 'bodyweight', [
-      ('chest', 'primary'),
-      ('triceps', 'secondary'),
+      ('triceps', 'primary'),
+      ('chest', 'secondary'),
     ]);
+    await ex('pecdeck', 'Pec Deck', 'weight_reps', 'machine', [('chest', 'primary')]);
     await ex('fly', 'Fly', 'weight_reps', 'cable', [('chest', 'primary')]);
     await ex('pushup', 'Şınav', 'reps', 'bodyweight', [('chest', 'primary')]);
     await ex('squat', 'Squat', 'weight_reps', 'barbell', [('quads', 'primary')]);
@@ -231,11 +232,18 @@ void main() {
       await session('b', '2026-11-12', 'completed');
       await set('b', 'dips', 0, 1);
       final r = await q.exercisesForRegion(uid, BodyRegion.chest);
-      expect(r.map((e) => e.id), ['dips', 'bench', 'fly', 'pushup']);
+      expect(r.map((e) => e.id), ['dips', 'bench', 'fly', 'pecdeck', 'pushup']);
       expect(r.first.lastDoneAt, DateTime.utc(2026, 11, 12, 10, 5));
       expect(r.last.lastDoneAt, isNull);
       expect(r.first.tracking, 'reps');
       expect(r.first.equipment, 'bodyweight');
+    });
+  });
+
+  group('exercisesForRegion yardımcı kas', () {
+    test('yapmamış kullanıcıda birincil önce, sonra yardımcı', () async {
+      final r = await q.exercisesForRegion(uid, BodyRegion.chest);
+      expect(r.map((e) => e.id), ['bench', 'fly', 'pecdeck', 'pushup', 'dips']);
     });
   });
 
@@ -245,7 +253,7 @@ void main() {
       final b = await q.searchExercises('ŞINAV');
       expect(a.map((e) => e.id), ['pushup']);
       expect(b.map((e) => e.id), ['pushup']);
-      expect((await q.searchExercises('  ')).length, 5);
+      expect((await q.searchExercises('  ')).length, 6);
     });
   });
 

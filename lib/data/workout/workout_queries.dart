@@ -22,6 +22,14 @@ class WeeklyBodyMap {
     required this.totalSets,
   });
 
+  static final empty = WeeklyBodyMap(
+    muscleSets: {for (final m in bodyMapMuscles) m: 0.0},
+    levels: {for (final m in bodyMapMuscles) m: 0},
+    lastWorked: {for (final m in bodyMapMuscles) m: null},
+    regionsWorked: 0,
+    totalSets: 0,
+  );
+
   final Map<String, double> muscleSets;
   final Map<String, int> levels;
   final Map<String, LocalDate?> lastWorked;
@@ -226,12 +234,14 @@ class WorkoutQueries {
     final groupIds = (await (_db.select(
       _db.muscleGroups,
     )..where((g) => g.bodyRegion.equals(region.name))).get()).map((g) => g.id).toList();
-    final exIds =
-        (await (_db.select(
-              _db.exerciseMuscles,
-            )..where((r) => r.muscleGroupId.isIn(groupIds) & r.role.equals('primary'))).get())
-            .map((r) => r.exerciseId)
-            .toSet();
+    final links = await (_db.select(
+      _db.exerciseMuscles,
+    )..where((r) => r.muscleGroupId.isIn(groupIds))).get();
+    final primaryIds = {
+      for (final r in links)
+        if (r.role == 'primary') r.exerciseId,
+    };
+    final exIds = {for (final r in links) r.exerciseId};
     final exercises = await (_db.select(
       _db.exercises,
     )..where((e) => e.id.isIn(exIds) & e.isActive.equals(true))).get();
@@ -242,6 +252,8 @@ class WorkoutQueries {
       if (da != null && db != null) return db.compareTo(da);
       if (da != null) return -1;
       if (db != null) return 1;
+      final pa = primaryIds.contains(a.id), pb = primaryIds.contains(b.id);
+      if (pa != pb) return pa ? -1 : 1;
       return turkishKey(a.nameTr).compareTo(turkishKey(b.nameTr));
     });
     return opts;
