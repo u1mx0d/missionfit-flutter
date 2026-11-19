@@ -66,7 +66,14 @@ class SupabaseRemoteGateway implements RemoteGateway {
   final SupabaseClient _client;
 
   /// Sunucunun damgaladığı / istemcinin değiştiremeyeceği profil sütunları (kolon bazlı GRANT).
-  static const _profileReadOnly = {'user_id', 'created_at', 'updated_at'};
+  // username/avatar_path yalnızca RPC ile değişir; payload'a girse bile gönderilmez.
+  static const _profileReadOnly = {
+    'user_id',
+    'created_at',
+    'updated_at',
+    'username',
+    'avatar_path',
+  };
 
   /// UPDATE yetkisi olmayan (değişmez) tablolar: çakışmada hiçbir şey yapılmaz.
   static const _insertOnly = {'favorite_foods', 'task_completions'};

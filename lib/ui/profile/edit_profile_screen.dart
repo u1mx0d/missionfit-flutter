@@ -15,6 +15,7 @@ import 'profile_widgets.dart';
 import 'username_field.dart';
 
 const photoFailedMessage = 'Fotoğraf yüklenemedi, tekrar dene.';
+const identityUnexpectedMessage = 'Bir şeyler ters gitti. Lütfen tekrar dene.';
 
 /// Bekleyen fotoğraf değişikliği: yeni bayt, Google URL'si ya da kaldırma.
 sealed class AvatarChange {
@@ -84,7 +85,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         email: ref.read(currentUserEmailProvider),
       );
     }
-    if (p.avatarPath == null && google?.photoUrl != null) {
+    // Google fotoğrafı yalnızca profil eksikken önerilir; kaldırılmış fotoğraf geri gelmez.
+    final incomplete = p.username == null || name == null || name.isEmpty;
+    if (incomplete && p.avatarPath == null && google?.photoUrl != null) {
       _avatar = AvatarFromUrl(googlePhotoAt512(google!.photoUrl!));
     }
   }
@@ -137,6 +140,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         try {
           await repo.setUsername(userId, username);
         } on IdentityError catch (e) {
+          if (!mounted) return;
           setState(() {
             if (e.failure == IdentityFailure.usernameTaken ||
                 e.failure == IdentityFailure.usernameInvalid) {
@@ -156,7 +160,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           if (mounted) setState(() => _avatar = null);
         } on IdentityError catch (e) {
           if (e.failure == IdentityFailure.offline && !usernameChanged) {
-            setState(() => _error = e.message);
+            if (mounted) setState(() => _error = e.message);
             return;
           }
           photoFailed = true;
@@ -174,6 +178,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         return;
       }
       if (context.canPop()) context.pop();
+    } catch (e) {
+      // Eşlenmemiş sunucu/auth hatası: sessizce yutulmasın.
+      debugPrint('Profil kaydedilemedi: $e');
+      if (mounted) setState(() => _error = identityUnexpectedMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

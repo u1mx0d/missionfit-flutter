@@ -16,6 +16,13 @@ class FakeIdentityRepo implements ProfileIdentityRepository {
   final pendingChecks = <String, Completer<bool>>{};
   bool deferChecks = false;
 
+  /// IdentityError olmayan beklenmeyen hatalar (ör. PostgrestException, auth hatası).
+  Object? usernameThrows;
+  Object? avatarThrows;
+
+  /// Verilirse setUsername bu tamamlanana kadar bekler.
+  Completer<void>? usernameGate;
+
   Future<void> _write(String userId, ProfilesCompanion c) =>
       (db.update(db.profiles)..where((t) => t.userId.equals(userId))).write(c);
 
@@ -29,6 +36,8 @@ class FakeIdentityRepo implements ProfileIdentityRepository {
   @override
   Future<String> setUsername(String userId, String username) async {
     calls.add('setUsername:$username');
+    if (usernameGate != null) await usernameGate!.future;
+    if (usernameThrows != null) throw usernameThrows!;
     if (usernameFailure != null) throw IdentityError(usernameFailure!);
     await _write(userId, ProfilesCompanion(username: Value(username)));
     return username;
@@ -37,6 +46,7 @@ class FakeIdentityRepo implements ProfileIdentityRepository {
   @override
   Future<String> uploadAvatar(String userId, Uint8List jpeg) async {
     calls.add('upload:${jpeg.length}');
+    if (avatarThrows != null) throw avatarThrows!;
     if (avatarFailure != null) throw IdentityError(avatarFailure!);
     await _write(userId, const ProfilesCompanion(avatarPath: Value('u1/2.jpg')));
     return 'u1/2.jpg';
@@ -45,6 +55,7 @@ class FakeIdentityRepo implements ProfileIdentityRepository {
   @override
   Future<String> uploadAvatarFromUrl(String userId, String url) async {
     calls.add('uploadUrl:$url');
+    if (avatarThrows != null) throw avatarThrows!;
     if (avatarFailure != null) throw IdentityError(avatarFailure!);
     await _write(userId, const ProfilesCompanion(avatarPath: Value('u1/3.jpg')));
     return 'u1/3.jpg';
@@ -53,6 +64,7 @@ class FakeIdentityRepo implements ProfileIdentityRepository {
   @override
   Future<void> removeAvatar(String userId) async {
     calls.add('remove');
+    if (avatarThrows != null) throw avatarThrows!;
     if (avatarFailure != null) throw IdentityError(avatarFailure!);
     await _write(userId, const ProfilesCompanion(avatarPath: Value(null)));
   }

@@ -178,6 +178,54 @@ void main() {
   });
 
   group('Düzenleme', () {
+    testWidgets('beklenmeyen kullanıcı adı hatası: mesaj, hiçbir şey kaydedilmez', (t) async {
+      final ctx = await _pump(t, initial: '/profil/duzenle', displayName: 'A', username: 'alp');
+      ctx.repo.usernameThrows = StateError('jwt expired');
+      await t.enterText(find.byKey(const Key('display-name')), 'Yeni Ad');
+      await _typeUsername(t, 'alpx');
+      await t.tap(_save());
+      await t.pumpAndSettle();
+      expect(_text(identityUnexpectedMessage), findsOneWidget);
+      expect((await ctx.row()).displayName, 'A');
+      expect(ctx.router.state.uri.path, '/profil/duzenle');
+    });
+
+    testWidgets('beklenmeyen fotoğraf hatası: mesaj gösterilir', (t) async {
+      final ctx = await _pump(
+        t,
+        initial: '/profil/duzenle',
+        displayName: 'A',
+        username: 'alp',
+        avatarPath: 'u1/1.jpg',
+      );
+      ctx.repo.avatarThrows = StateError('beklenmedik');
+      await t.tap(find.text('Fotoğrafı değiştir'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Fotoğrafı kaldır'));
+      await t.pumpAndSettle();
+      await t.tap(_save());
+      await t.pumpAndSettle();
+      expect(_text(identityUnexpectedMessage), findsOneWidget);
+      expect(ctx.router.state.uri.path, '/profil/duzenle');
+    });
+
+    testWidgets('profili tam Google kullanıcısında fotoğraf önceden seçilmez', (t) async {
+      final ctx = await _pump(
+        t,
+        initial: '/profil/duzenle',
+        displayName: 'A',
+        username: 'alp',
+        google: const GoogleProfile(name: 'Alperen', photoUrl: 'https://g/p=s96-c'),
+      );
+      expect(find.byKey(const Key('avatar-url')), findsNothing);
+      ctx.repo.avatarFailure = IdentityFailure.offline;
+      await t.enterText(find.byKey(const Key('display-name')), 'Yeni Ad');
+      await t.tap(_save());
+      await t.pumpAndSettle();
+      expect(ctx.repo.calls, isNot(contains(startsWith('upload'))));
+      expect((await ctx.row()).displayName, 'Yeni Ad');
+    });
+
     testWidgets('yalnızca ad değişti: depo çağrılmaz, ad kaydedilir', (t) async {
       final ctx = await _pump(t, initial: '/profil/duzenle', displayName: 'A', username: 'alp');
       ctx.repo.usernameFailure = IdentityFailure.offline;

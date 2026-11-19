@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,7 @@ import 'package:missionfit/app/theme_controller.dart';
 import 'package:missionfit/data/db/database.dart';
 import 'package:missionfit/data/sync/outbox.dart';
 import 'package:missionfit/ui/onboarding/onboarding_flow.dart';
+import 'package:missionfit/ui/profile/edit_profile_screen.dart' show identityUnexpectedMessage;
 import 'package:missionfit/ui/profile/username_field.dart' show usernameCheckDelay;
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
@@ -377,6 +380,34 @@ void main() {
   });
 
   group('Profilin adımı', () {
+    testWidgets('beklenmeyen hata: mesaj görünür, adım kilitli kalmaz', (tester) async {
+      final h = await _pump(tester);
+      await _consent(tester);
+      h.repo.usernameThrows = StateError('jwt expired');
+      await _identity(tester);
+      expect(find.text('Profilin'), findsOneWidget);
+      expect(find.text(identityUnexpectedMessage), findsOneWidget);
+      h.repo.usernameThrows = null;
+      await _tapText(tester, 'Devam');
+      expect(find.text('Doğum tarihin'), findsOneWidget);
+    });
+
+    testWidgets('kullanıcı adı alınırken geri tuşu adımı değiştirmez', (tester) async {
+      final h = await _pump(tester);
+      await _consent(tester);
+      final gate = h.repo.usernameGate = Completer<void>();
+      await _enter(tester, 'display-name', 'Ali');
+      await tester.tap(find.text('Devam'));
+      await tester.pump();
+      // Sistem geri hareketi (PopScope).
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('Profilin'), findsOneWidget);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Doğum tarihin'), findsOneWidget);
+    });
+
     testWidgets('öneri adım açıldıktan sonra gelse de kontrol edilir', (tester) async {
       final h = await _pump(tester, deferChecks: true);
       await _consent(tester);

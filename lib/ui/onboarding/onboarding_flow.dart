@@ -16,7 +16,8 @@ import '../../domain/username.dart';
 import '../components/dot_grid.dart';
 import '../components/mf_button.dart';
 import '../profile/avatar_source_sheet.dart';
-import '../profile/edit_profile_screen.dart' show AvatarBytes, AvatarFromUrl, applyAvatarChange;
+import '../profile/edit_profile_screen.dart'
+    show AvatarBytes, AvatarFromUrl, applyAvatarChange, identityUnexpectedMessage;
 import '../profile/profile_widgets.dart' show showSnack;
 import 'birth_date_step.dart';
 import 'body_step.dart';
@@ -159,7 +160,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
     final username = normalizeUsername(_draft.username.text);
     if (username == _draft.claimedUsername) return _goTo(_identityStep + 1);
     final userId = ref.read(signedInUserIdProvider);
-    if (userId == null) return;
+    if (userId == null) {
+      setState(() => _errors = {'identity': identityUnexpectedMessage});
+      return;
+    }
     setState(() => _busy = true);
     try {
       await ref.read(profileIdentityRepositoryProvider).setUsername(userId, username);
@@ -175,6 +179,14 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       setState(() {
         _busy = false;
         _errors = {field ? 'username' : 'identity': e.message};
+      });
+    } catch (e) {
+      // Eşlenmemiş sunucu/auth hatası: adım kilitli kalmasın.
+      debugPrint('Kullanıcı adı alınamadı: $e');
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _errors = {'identity': identityUnexpectedMessage};
       });
     }
   }
@@ -424,9 +436,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   Widget build(BuildContext context) {
     final t = mf(context);
     return PopScope(
-      canPop: _step == 0,
+      canPop: _step == 0 && !_busy,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _back();
+        // Kayıt sürerken geri gidilmez (yoksa sonuç gelince adım atlanırdı).
+        if (!didPop && !_busy) _back();
       },
       child: Scaffold(
         backgroundColor: Colors.transparent,
