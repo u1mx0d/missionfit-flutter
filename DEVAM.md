@@ -68,3 +68,10 @@ Modüller aynı kalıyor:
 - **Tasarım aracı:** ui-ux-pro-max skill'i kullanılacak (Flutter yönergeleri var).
 - **Görsel taslaklar:** `.superpowers/brainstorm/` altında (`tema-yonleri.html`). Sunucuyu yeniden başlatmak için brainstorming skill'indeki `scripts/start-server.sh --project-dir <bu klasör> --open` kullanılır.
 - **Git:** Bu klasör henüz bir git deposu değil. Depo oluşturulunca `.superpowers/` `.gitignore`'a eklenecek.
+
+## 2026-11-19 durumu
+- **Giriş ekranı yeniden tasarımı bitti** (plan `2026-11-19-giris-ekrani.md`): nokta-matris hoş geldin, sporcu kartlı giriş/kayıt, AKTİF damgalı kod ekranı, telefonda kayıtlı kartlar (en çok 5). Genel inceleme + düzeltmeler `e1146b0`.
+- **Antrenman tarzı bitti** (plan `2026-11-19-antrenman-tarzi.md`): onboarding 10 adım (Tarzın, Hedeflerin eklendi), Profil > "Antrenman tarzım", yerel şema v3. Uzak migration `20261119130000` canlıda (kullanıcı onayıyla). Son commit `c3e4108`.
+- Kural: sunucuda yeni sütun gerektiren sürümde **önce `db push`, sonra APK**. Hedef listesine yeni anahtar eklenirse önce istemci yayınlanmalı (istemci bilinmeyen anahtarları atıp tam satır gönderiyor).
+- Telefonda deneme bekleniyor: yeni hesapla 10 adım, atla, Profil'den değiştirme, çevrimdışı değiştirme → senkron, eski hesapta "Profilini tamamla".
+- Sonraki büyük adım: **Aşama 2 (Antrenman odak modu) beyin fırtınası.**
