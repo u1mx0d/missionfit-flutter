@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../domain/calories.dart';
 import '../../domain/onboarding_rules.dart';
+import '../../domain/training_style.dart';
 import '../../domain/units.dart';
 import '../theme/mf_theme.dart';
 import '../../app/providers.dart' show PermissionState;
@@ -17,6 +18,12 @@ class OnboardingDraft {
 
   /// Bu onboarding'de sunucuda alınmış kullanıcı adı (geri dönülüp değiştirilmediyse tekrar alınmaz).
   String? claimedUsername;
+  StyleSelection style = const StyleSelection();
+  TrainingLevel? level;
+
+  /// Seçilen hedef hareketler / alanlar (seçim sırası korunur).
+  Set<String> goalMoves = {};
+  Set<FocusArea> focusAreas = {};
   final day = TextEditingController();
   final month = TextEditingController();
   final year = TextEditingController();
@@ -35,6 +42,15 @@ class OnboardingDraft {
       c.dispose();
     }
   }
+
+  /// Hedef seçenekleri: ana + yan tarzların listesi; listeden düşen seçili hedefler sonda kalır.
+  List<String> get goalOptions => goalOptionsFor(style, keep: goalMoves);
+
+  /// Kaydedilecek hedefler, ekrandaki sırayla.
+  List<String> get orderedGoalMoves => [
+    for (final key in goalOptions)
+      if (goalMoves.contains(key)) key,
+  ];
 
   int? get birthYear => parseIntStrict(year.text);
 

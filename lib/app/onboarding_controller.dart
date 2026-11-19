@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/calories.dart';
 import '../domain/dates.dart' show isValidTimeZone;
 import '../domain/notification_settings.dart';
+import '../domain/training_style.dart';
 import '../domain/units.dart';
 import '../ui/theme/accents.dart';
 import '../ui/theme/mf_theme.dart';
@@ -25,6 +26,11 @@ class OnboardingData {
     required this.themeMode,
     required this.accent,
     required this.notificationSettings,
+    required this.trainingStyle,
+    required this.trainingLevel,
+    this.sideStyles = const [],
+    this.goalMoves = const [],
+    this.focusAreas = const [],
     this.displayName,
   });
   final int birthYear;
@@ -39,6 +45,13 @@ class OnboardingData {
   final ThemeModeChoice themeMode;
   final AccentColor accent;
   final NotificationSettings notificationSettings;
+  final TrainingStyle trainingStyle;
+  final TrainingLevel trainingLevel;
+  final List<TrainingStyle> sideStyles;
+
+  /// "Hedeflerin" atlandıysa boş.
+  final List<String> goalMoves;
+  final List<FocusArea> focusAreas;
 
   /// "Profilin" adımındaki görünen ad (kırpılmış); null ise profildeki kalır.
   final String? displayName;
@@ -82,6 +95,11 @@ final onboardingSaverProvider = Provider<OnboardingSaver>((ref) {
             themeFamily: data.themeFamily,
             accentColor: data.accent,
             notificationSettings: data.notificationSettings,
+            trainingStyle: data.trainingStyle,
+            sideStyles: data.sideStyles,
+            trainingLevel: data.trainingLevel,
+            goalMoves: data.goalMoves,
+            focusAreas: data.focusAreas,
             displayName: data.displayName ?? p.displayName,
             timezone: zone ?? p.timezone,
           ),

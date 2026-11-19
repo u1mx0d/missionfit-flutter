@@ -11,6 +11,7 @@ import '../../app/theme_controller.dart';
 import '../../app/today_provider.dart';
 import '../../domain/notification_settings.dart';
 import '../../domain/onboarding_rules.dart';
+import '../../domain/training_style.dart';
 import '../../domain/units.dart';
 import '../../domain/username.dart';
 import '../components/dot_grid.dart';
@@ -24,20 +25,23 @@ import 'body_step.dart';
 import 'calorie_preview_step.dart';
 import 'consent_step.dart';
 import 'goal_step.dart';
+import 'goals_step.dart';
 import 'identity_step.dart';
 import 'notification_step.dart';
 import 'onboarding_draft.dart';
+import 'style_step.dart';
 import 'theme_step.dart';
 
-const _stepCount = 8;
-const _consentStep = 0, _identityStep = 1, _birthStep = 2, _bodyStep = 3, _goalStep = 4;
-const _previewStep = 5, _notificationStep = 6, _themeStep = 7;
+const _stepCount = 10;
+const _consentStep = 0, _identityStep = 1, _styleStep = 2, _goalsStep = 3, _birthStep = 4;
+const _bodyStep = 5, _goalStep = 6, _previewStep = 7, _notificationStep = 8, _themeStep = 9;
 const _suggestionAttempts = 5;
 const photoLaterMessage = 'Fotoğrafını profilden ekleyebilirsin.';
 const _saveFailedMessage = 'Bilgilerin kaydedilemedi. Lütfen tekrar dene.';
 
-/// 8 adımlı onboarding: rıza, profil (ad, kullanıcı adı, fotoğraf), doğum tarihi, vücut,
-/// aktivite ve hedef, kalori önizlemesi, bildirim izni, tema. Kullanıcı adı profil adımında
+/// 10 adımlı onboarding: rıza, profil (ad, kullanıcı adı, fotoğraf), antrenman tarzı ve seviye,
+/// hedef hareketler/alanlar (atlanabilir), doğum tarihi, vücut, aktivite ve hedef, kalori
+/// önizlemesi, bildirim izni, tema. Kullanıcı adı profil adımında
 /// sunucuda alınır; geri kalan her şey bitişte tek profil güncellemesiyle yazılır.
 class OnboardingFlow extends ConsumerStatefulWidget {
   const OnboardingFlow({super.key});
@@ -112,6 +116,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
         if (n != null) e['displayName'] = n;
         final u = validateUsername(normalizeUsername(_draft.username.text));
         if (u != null) e['username'] = u;
+      case _styleStep:
+        final s = validateStyle(_draft.style, _draft.level);
+        if (s != null) e[_draft.style.main == null ? 'style' : 'level'] = s;
       case _birthStep:
         final r = validateBirthDate(
           day: _draft.day.text,
@@ -204,6 +211,14 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
     }
   }
 
+  /// "Hedeflerin" atlanır: hedef ve alan listeleri boş kaydedilir.
+  void _skipGoals() {
+    _draft
+      ..goalMoves = {}
+      ..focusAreas = {};
+    _goTo(_goalsStep + 1);
+  }
+
   void _back() {
     if (_step > 0) _goTo(_step - 1);
   }
@@ -250,7 +265,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
         birthYear == null ||
         d.sex == null ||
         d.activity == null ||
-        d.goal == null) {
+        d.goal == null ||
+        d.style.main == null ||
+        d.level == null) {
       return;
     }
     setState(() {
@@ -275,6 +292,14 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
           notificationSettings: d.permission == PermissionState.denied
               ? const NotificationSettings(enabled: false, taskLeadMinutes: 10)
               : defaultNotificationSettings,
+          trainingStyle: d.style.main!,
+          sideStyles: d.style.sides,
+          trainingLevel: d.level!,
+          goalMoves: d.orderedGoalMoves,
+          focusAreas: [
+            for (final a in FocusArea.values)
+              if (d.focusAreas.contains(a)) a,
+          ],
           displayName: d.displayName.text.trim(),
         ),
       );
@@ -343,6 +368,20 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       onChanged: _touch,
       errors: _errors,
       enabled: !_busy,
+    ),
+    _styleStep => StyleStep(
+      style: _draft.style,
+      level: _draft.level,
+      onStyle: (v) => _touch(() => _draft.style = v),
+      onLevel: (v) => _touch(() => _draft.level = v),
+      errors: _errors,
+    ),
+    _goalsStep => GoalsStep(
+      options: _draft.goalOptions,
+      goals: _draft.goalMoves,
+      areas: _draft.focusAreas,
+      onGoals: (v) => _touch(() => _draft.goalMoves = v),
+      onAreas: (v) => _touch(() => _draft.focusAreas = v),
     ),
     _birthStep => BirthDateStep(
       day: _draft.day,
@@ -424,6 +463,15 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
           TextButton(
             onPressed: _busy ? null : _confirmSignOut,
             child: Text('Çıkış yap', style: TextStyle(color: mf(context).textMuted)),
+          ),
+        ];
+      case _goalsStep:
+        return [
+          MfButton(label: 'Devam', onPressed: _next),
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: _skipGoals,
+            child: Text('Şimdilik atla', style: TextStyle(color: mf(context).textMuted)),
           ),
         ];
       case _identityStep:

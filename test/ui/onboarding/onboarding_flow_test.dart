@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -170,6 +171,21 @@ Future<void> _identity(WidgetTester t, {String name = 'Ali Kaya', String? userna
   await _tapText(t, 'Devam');
 }
 
+const _styleTitle = 'Nasıl antrenman yapıyorsun?';
+const _goalsTitle = 'Neye ulaşmak istiyorsun?';
+
+/// "Tarzın" adımı: calisthenics (ana) + orta seviye, Devam.
+Future<void> _style(WidgetTester t) async {
+  await _tapKey(t, 'style-calisthenics');
+  await _tapKey(t, 'level-intermediate');
+  await _tapText(t, 'Devam');
+}
+
+/// "Hedeflerin" adımı: atlanır.
+Future<void> _goals(WidgetTester t) async {
+  await _tapText(t, 'Şimdilik atla');
+}
+
 Future<void> _birth(WidgetTester t, {String year = '1995'}) async {
   await _enter(t, 'birth-day', '15');
   await _enter(t, 'birth-month', '6');
@@ -193,6 +209,8 @@ Future<void> _goal(WidgetTester t) async {
 Future<void> _finishAll(WidgetTester t) async {
   await _consent(t);
   await _identity(t);
+  await _style(t);
+  await _goals(t);
   await _birth(t);
   await _body(t);
   await _goal(t);
@@ -253,6 +271,8 @@ void main() {
     await _pump(tester);
     await _consent(tester);
     await _identity(tester);
+    await _style(tester);
+    await _goals(tester);
     await _birth(tester, year: '${DateTime.now().year - 17}');
     expect(find.text('Doğum tarihin'), findsOneWidget);
     expect(find.text('MissionFit 18 yaş ve üzeri kullanıcılar içindir.'), findsOneWidget);
@@ -264,6 +284,8 @@ void main() {
     await h.container.read(themeControllerProvider.notifier).setFamily(ThemeFamily.mono);
     await _consent(tester);
     await _identity(tester);
+    await _style(tester);
+    await _goals(tester);
     await _birth(tester);
     await _body(tester);
     await _goal(tester);
@@ -291,6 +313,8 @@ void main() {
     final h = await _pump(tester);
     await _consent(tester);
     await _identity(tester);
+    await _style(tester);
+    await _goals(tester);
     await _birth(tester);
     await _body(tester);
     await _goal(tester);
@@ -331,6 +355,8 @@ void main() {
     final h = await _pump(tester, seedProfile: false);
     await _consent(tester);
     await _identity(tester);
+    await _style(tester);
+    await _goals(tester);
     await _birth(tester);
     await _body(tester);
     await _goal(tester);
@@ -363,6 +389,8 @@ void main() {
     await _pump(tester);
     await _consent(tester);
     await _identity(tester);
+    await _style(tester);
+    await _goals(tester);
     await _birth(tester);
     await _tapKey(tester, 'sex-female');
     await _enter(tester, 'height', '170');
@@ -370,13 +398,17 @@ void main() {
     expect(find.text('Doğum tarihin'), findsOneWidget);
     expect(tester.widget<TextField>(find.byKey(const Key('birth-year'))).controller!.text, '1995');
     await _tapKey(tester, 'back');
+    expect(find.text(_goalsTitle), findsOneWidget);
+    await _tapKey(tester, 'back');
+    expect(find.text(_styleTitle), findsOneWidget);
+    await _tapKey(tester, 'back');
     expect(find.text('Profilin'), findsOneWidget);
     await _tapKey(tester, 'back');
     expect(find.text('Hoş geldin!'), findsOneWidget);
     expect(tester.widget<Checkbox>(find.byKey(const Key('consent-kvkk'))).value, isTrue);
-    await _tapText(tester, 'Devam');
-    await _tapText(tester, 'Devam');
-    await _tapText(tester, 'Devam');
+    for (var i = 0; i < 5; i++) {
+      await _tapText(tester, 'Devam');
+    }
     expect(tester.widget<TextField>(find.byKey(const Key('height'))).controller!.text, '170');
   });
 
@@ -390,7 +422,7 @@ void main() {
       expect(find.text(identityUnexpectedMessage), findsOneWidget);
       h.repo.usernameThrows = null;
       await _tapText(tester, 'Devam');
-      expect(find.text('Doğum tarihin'), findsOneWidget);
+      expect(find.text(_styleTitle), findsOneWidget);
     });
 
     testWidgets('kullanıcı adı alınırken geri tuşu adımı değiştirmez', (tester) async {
@@ -406,7 +438,7 @@ void main() {
       expect(find.text('Profilin'), findsOneWidget);
       gate.complete();
       await tester.pumpAndSettle();
-      expect(find.text('Doğum tarihin'), findsOneWidget);
+      expect(find.text(_styleTitle), findsOneWidget);
     });
 
     testWidgets('öneri adım açıldıktan sonra gelse de kontrol edilir', (tester) async {
@@ -451,7 +483,7 @@ void main() {
       expect(find.text('İnternet bağlantısı gerekiyor.'), findsOneWidget);
       h.repo.usernameFailure = null;
       await _tapText(tester, 'Devam');
-      expect(find.text('Doğum tarihin'), findsOneWidget);
+      expect(find.text(_styleTitle), findsOneWidget);
       expect(h.repo.calls.where((c) => c == 'setUsername:ali_k'), hasLength(3));
     });
 
@@ -462,7 +494,7 @@ void main() {
       await _tapKey(tester, 'back');
       expect(find.text('Profilin'), findsOneWidget);
       await _tapText(tester, 'Devam');
-      expect(find.text('Doğum tarihin'), findsOneWidget);
+      expect(find.text(_styleTitle), findsOneWidget);
       expect(h.repo.calls.where((c) => c.startsWith('setUsername')), hasLength(1));
     });
 
@@ -488,6 +520,8 @@ void main() {
       expect(_usernameText(tester), matches(RegExp(r'^alperendagtekin\d\d$')));
       expect(find.byKey(const Key('avatar-url')), findsOneWidget);
       await _tapText(tester, 'Devam');
+      await _style(tester);
+      await _goals(tester);
       await _birth(tester);
       await _body(tester);
       await _goal(tester);
@@ -531,6 +565,8 @@ void main() {
       await _tapText(tester, 'Galeriden seç');
       expect(find.byKey(const Key('avatar-bytes')), findsOneWidget);
       await _identity(tester);
+      await _style(tester);
+      await _goals(tester);
       await _birth(tester);
       await _body(tester);
       await _goal(tester);
@@ -550,6 +586,8 @@ void main() {
       await _tapText(tester, 'Fotoğraf ekle');
       await _tapText(tester, 'Galeriden seç');
       await _identity(tester);
+      await _style(tester);
+      await _goals(tester);
       await _birth(tester);
       await _body(tester);
       await _goal(tester);
@@ -560,6 +598,141 @@ void main() {
       expect(p.onboardingCompleted, isTrue);
       expect(h.router.routerDelegate.currentConfiguration.uri.path, '/bugun');
       expect(find.text('Fotoğrafını profilden ekleyebilirsin.'), findsOneWidget);
+    });
+  });
+
+  group('Tarzın ve Hedeflerin adımları', () {
+    Future<void> toStyle(WidgetTester t) async {
+      await _consent(t);
+      await _identity(t);
+    }
+
+    Finder inCard(String key, Finder f) => find.descendant(of: find.byKey(Key(key)), matching: f);
+
+    testWidgets('10 adım; Profilin\'den sonra Tarzın gelir', (tester) async {
+      await _pump(tester);
+      expect(find.text('1 / 10'), findsOneWidget);
+      await toStyle(tester);
+      expect(find.text('3 / 10'), findsOneWidget);
+      expect(find.text(_styleTitle), findsOneWidget);
+    });
+
+    testWidgets('tarz ve seviye zorunlu', (tester) async {
+      await _pump(tester);
+      await toStyle(tester);
+      await _tapText(tester, 'Devam');
+      expect(find.text(_styleTitle), findsOneWidget);
+      expect(find.text('Ana tarzını seç.'), findsOneWidget);
+      await _tapKey(tester, 'style-calisthenics');
+      await _tapText(tester, 'Devam');
+      expect(find.text(_styleTitle), findsOneWidget);
+      expect(find.text('Seviyeni seç.'), findsOneWidget);
+      await _tapKey(tester, 'level-intermediate');
+      await _tapText(tester, 'Devam');
+      expect(find.text(_goalsTitle), findsOneWidget);
+    });
+
+    testWidgets('ilk dokunuş ana, uzun basma yan tarzı ana yapar', (tester) async {
+      await _pump(tester);
+      await toStyle(tester);
+      await _tapKey(tester, 'style-calisthenics');
+      await _tapKey(tester, 'style-functional');
+      expect(inCard('style-calisthenics', find.text('ANA')), findsOneWidget);
+      expect(inCard('style-functional', find.text('ANA')), findsNothing);
+      expect(inCard('style-functional', find.byIcon(Icons.check_circle)), findsOneWidget);
+      // Zaten ana olan karta uzun basmak bir şey değiştirmez.
+      await tester.longPress(find.byKey(const Key('style-calisthenics')));
+      await tester.pumpAndSettle();
+      expect(inCard('style-calisthenics', find.text('ANA')), findsOneWidget);
+      await tester.longPress(find.byKey(const Key('style-functional')));
+      await tester.pumpAndSettle();
+      expect(inCard('style-functional', find.text('ANA')), findsOneWidget);
+      expect(inCard('style-calisthenics', find.text('ANA')), findsNothing);
+      expect(inCard('style-calisthenics', find.byIcon(Icons.check_circle)), findsOneWidget);
+    });
+
+    testWidgets('seçimler kaydedilir; outbox\'ta tek kayıt', (tester) async {
+      final h = await _pump(tester);
+      await toStyle(tester);
+      await _tapKey(tester, 'style-calisthenics');
+      await _tapKey(tester, 'style-functional');
+      await _tapKey(tester, 'level-intermediate');
+      await _tapText(tester, 'Devam');
+      expect(find.text(_goalsTitle), findsOneWidget);
+      // Ana tarzın hedefleri önce, yan tarzın yeni olanları sonra.
+      expect(find.byKey(const Key('goal-muscle_up')), findsOneWidget);
+      expect(find.byKey(const Key('goal-rope_climb')), findsOneWidget);
+      expect(find.byKey(const Key('goal-bench_up')), findsNothing);
+      await _tapKey(tester, 'goal-muscle_up');
+      await _tapKey(tester, 'area-push');
+      expect(inCard('goal-muscle_up', find.byIcon(Icons.check)), findsOneWidget);
+      await _tapText(tester, 'Devam');
+      expect(find.text('Doğum tarihin'), findsOneWidget);
+      await _birth(tester);
+      await _body(tester);
+      await _goal(tester);
+      await _tapText(tester, 'Devam');
+      await _tapText(tester, 'Şimdi değil');
+      await _tapText(tester, 'Bitir');
+      final p = await h.db.select(h.db.profiles).getSingle();
+      expect(p.trainingStyle, 'calisthenics');
+      expect(jsonDecode(p.sideStyles!), ['functional']);
+      expect(p.trainingLevel, 'intermediate');
+      expect(jsonDecode(p.goalMoves!), ['muscle_up']);
+      expect(jsonDecode(p.focusAreas!), ['push']);
+      final pending = await OutboxRepository(h.db).pending();
+      expect(pending, hasLength(1));
+      expect(pending.single.payload, containsPair('training_style', 'calisthenics'));
+      expect(pending.single.payload, containsPair('side_styles', ['functional']));
+      expect(pending.single.payload, containsPair('goal_moves', ['muscle_up']));
+    });
+
+    testWidgets('Şimdilik atla: hedef ve alan boş kaydedilir', (tester) async {
+      final h = await _pump(tester);
+      await toStyle(tester);
+      await _style(tester);
+      await _tapKey(tester, 'goal-muscle_up');
+      await _tapKey(tester, 'area-pull');
+      await _tapText(tester, 'Şimdilik atla');
+      expect(find.text('Doğum tarihin'), findsOneWidget);
+      await _birth(tester);
+      await _body(tester);
+      await _goal(tester);
+      await _tapText(tester, 'Devam');
+      await _tapText(tester, 'Şimdi değil');
+      await _tapText(tester, 'Bitir');
+      final p = await h.db.select(h.db.profiles).getSingle();
+      expect(p.trainingStyle, 'calisthenics');
+      expect(jsonDecode(p.goalMoves!), isEmpty);
+      expect(jsonDecode(p.focusAreas!), isEmpty);
+    });
+
+    testWidgets('geri dönüp gelince seçimler korunur; düşen hedef sonda kalır', (tester) async {
+      await _pump(tester);
+      await toStyle(tester);
+      await _tapKey(tester, 'style-calisthenics');
+      await _tapKey(tester, 'level-advanced');
+      await _tapText(tester, 'Devam');
+      await _tapKey(tester, 'goal-planche');
+      await _tapKey(tester, 'area-core');
+      await _tapText(tester, 'Devam');
+      await _tapKey(tester, 'back');
+      expect(find.text(_goalsTitle), findsOneWidget);
+      expect(inCard('goal-planche', find.byIcon(Icons.check)), findsOneWidget);
+      expect(inCard('area-core', find.byIcon(Icons.check)), findsOneWidget);
+      await _tapKey(tester, 'back');
+      expect(find.text(_styleTitle), findsOneWidget);
+      expect(inCard('style-calisthenics', find.text('ANA')), findsOneWidget);
+      expect(inCard('level-advanced', find.byIcon(Icons.check)), findsOneWidget);
+      // Ana tarz değişince planche listeden düşer ama seçili kalıp sonda görünür.
+      await _tapKey(tester, 'style-calisthenics');
+      await _tapKey(tester, 'style-strength');
+      await _tapText(tester, 'Devam');
+      expect(inCard('goal-planche', find.byIcon(Icons.check)), findsOneWidget);
+      final last = tester.getTopLeft(find.byKey(const Key('goal-planche')));
+      final ohp = tester.getTopLeft(find.byKey(const Key('goal-ohp_up')));
+      expect(last.dy > ohp.dy || (last.dy == ohp.dy && last.dx > ohp.dx), isTrue);
+      expect(find.byKey(const Key('goal-muscle_up')), findsNothing);
     });
   });
 }
