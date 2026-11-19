@@ -5,11 +5,18 @@ import '../../domain/onboarding_rules.dart';
 import '../../domain/units.dart';
 import '../theme/mf_theme.dart';
 import '../../app/providers.dart' show PermissionState;
+import '../profile/edit_profile_screen.dart' show AvatarChange;
 
 /// Onboarding sırasında girilen değerler; adımlar arası gezinirken korunur.
 class OnboardingDraft {
   bool consentKvkk = false;
   bool consentHealth = false;
+  final displayName = TextEditingController();
+  final username = TextEditingController();
+  AvatarChange? avatar;
+
+  /// Bu onboarding'de sunucuda alınmış kullanıcı adı (geri dönülüp değiştirilmediyse tekrar alınmaz).
+  String? claimedUsername;
   final day = TextEditingController();
   final month = TextEditingController();
   final year = TextEditingController();
@@ -24,7 +31,7 @@ class OnboardingDraft {
   ThemeModeChoice mode = ThemeModeChoice.system;
 
   void dispose() {
-    for (final c in [day, month, year, height, weight]) {
+    for (final c in [displayName, username, day, month, year, height, weight]) {
       c.dispose();
     }
   }

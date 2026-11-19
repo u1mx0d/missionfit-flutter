@@ -25,6 +25,7 @@ class OnboardingData {
     required this.themeMode,
     required this.accent,
     required this.notificationSettings,
+    this.displayName,
   });
   final int birthYear;
   final Sex sex;
@@ -38,6 +39,9 @@ class OnboardingData {
   final ThemeModeChoice themeMode;
   final AccentColor accent;
   final NotificationSettings notificationSettings;
+
+  /// "Profilin" adımındaki görünen ad (kırpılmış); null ise profildeki kalır.
+  final String? displayName;
 }
 
 typedef OnboardingSaver = Future<void> Function(OnboardingData data);
@@ -78,6 +82,7 @@ final onboardingSaverProvider = Provider<OnboardingSaver>((ref) {
             themeFamily: data.themeFamily,
             accentColor: data.accent,
             notificationSettings: data.notificationSettings,
+            displayName: data.displayName ?? p.displayName,
             timezone: zone ?? p.timezone,
           ),
         );

@@ -19,6 +19,8 @@ import 'package:missionfit/ui/theme/mf_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../helpers/identity_fakes.dart';
+
 class _FakeSession extends Fake implements Session {}
 
 class _FakeAuthRepo extends Fake implements AuthRepository {
@@ -58,6 +60,8 @@ Future<(ProviderContainer, GoRouter)> _pump(
       authStateProvider.overrideWithValue(AsyncData<Session?>(signedIn ? _FakeSession() : null)),
       signedInUserIdProvider.overrideWithValue(signedIn && userReady ? 'u1' : null),
       onboardedProvider.overrideWithValue(signedIn && onboarded),
+      googleProfileProvider.overrideWithValue(null),
+      profileIdentityRepositoryProvider.overrideWithValue(FakeIdentityRepo(db)),
       hasPasswordIdentityProvider.overrideWithValue(true),
       currentUserEmailProvider.overrideWithValue('a@b.com'),
       clockProvider.overrideWithValue(() => DateTime.utc(2026, 11, 18, 7, 0, 30)),

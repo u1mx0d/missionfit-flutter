@@ -1,32 +1,43 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/onboarding_controller.dart';
+import '../../app/profile_controller.dart' show signedInUserIdProvider;
 import '../../app/providers.dart';
 import '../../app/theme_controller.dart';
 import '../../app/today_provider.dart';
 import '../../domain/notification_settings.dart';
 import '../../domain/onboarding_rules.dart';
 import '../../domain/units.dart';
+import '../../domain/username.dart';
 import '../components/dot_grid.dart';
 import '../components/mf_button.dart';
+import '../profile/avatar_source_sheet.dart';
+import '../profile/edit_profile_screen.dart' show AvatarBytes, AvatarFromUrl, applyAvatarChange;
+import '../profile/profile_widgets.dart' show showSnack;
 import 'birth_date_step.dart';
 import 'body_step.dart';
 import 'calorie_preview_step.dart';
 import 'consent_step.dart';
 import 'goal_step.dart';
+import 'identity_step.dart';
 import 'notification_step.dart';
 import 'onboarding_draft.dart';
 import 'theme_step.dart';
 
-const _stepCount = 7;
-const _consentStep = 0, _birthStep = 1, _bodyStep = 2, _goalStep = 3;
-const _notificationStep = 5, _themeStep = 6;
+const _stepCount = 8;
+const _consentStep = 0, _identityStep = 1, _birthStep = 2, _bodyStep = 3, _goalStep = 4;
+const _previewStep = 5, _notificationStep = 6, _themeStep = 7;
+const _suggestionAttempts = 5;
+const photoLaterMessage = 'Fotoğrafını profilden ekleyebilirsin.';
 const _saveFailedMessage = 'Bilgilerin kaydedilemedi. Lütfen tekrar dene.';
 
-/// 7 adımlı onboarding: rıza, doğum tarihi, vücut, aktivite ve hedef, kalori önizlemesi,
-/// bildirim izni, tema. Bitişte tek profil güncellemesi yapılır.
+/// 8 adımlı onboarding: rıza, profil (ad, kullanıcı adı, fotoğraf), doğum tarihi, vücut,
+/// aktivite ve hedef, kalori önizlemesi, bildirim izni, tema. Kullanıcı adı profil adımında
+/// sunucuda alınır; geri kalan her şey bitişte tek profil güncellemesiyle yazılır.
 class OnboardingFlow extends ConsumerStatefulWidget {
   const OnboardingFlow({super.key});
 
@@ -48,6 +59,32 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
     _draft
       ..family = current.family
       ..mode = current.mode;
+    final google = ref.read(googleProfileProvider);
+    if (google?.name != null) _draft.displayName.text = google!.name!;
+    if (google?.photoUrl != null) {
+      _draft.avatar = AvatarFromUrl(googlePhotoAt512(google!.photoUrl!));
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _suggestUsername(google?.name));
+  }
+
+  /// Addan/e-postadan kullanıcı adı önerir; alınmışsa sonuna sayı ekleyip birkaç kez dener.
+  /// Çevrimdışıysa taban öneri olduğu gibi kalır (adımda sunucu yine kontrol eder).
+  Future<void> _suggestUsername(String? name) async {
+    if (_draft.username.text.isNotEmpty) return;
+    final base = usernameBase(fullName: name, email: ref.read(currentUserEmailProvider));
+    final repo = ref.read(profileIdentityRepositoryProvider);
+    final random = Random();
+    var candidate = base;
+    try {
+      for (var i = 0; i < _suggestionAttempts; i++) {
+        if (await repo.isUsernameAvailable(candidate)) break;
+        candidate = usernameWithSuffix(base, 10 + random.nextInt(90));
+      }
+    } catch (_) {
+      candidate = base;
+    }
+    if (!mounted || _draft.username.text.isNotEmpty) return;
+    setState(() => _draft.username.text = candidate);
   }
 
   @override
@@ -69,6 +106,11 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
         if (!_draft.consentKvkk || !_draft.consentHealth) {
           e['consent'] = 'Devam etmek için iki onayı da işaretle.';
         }
+      case _identityStep:
+        final n = validateDisplayName(_draft.displayName.text);
+        if (n != null) e['displayName'] = n;
+        final u = validateUsername(normalizeUsername(_draft.username.text));
+        if (u != null) e['username'] = u;
       case _birthStep:
         final r = validateBirthDate(
           day: _draft.day.text,
@@ -104,7 +146,50 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   }
 
   void _next() {
-    if (_validate()) _goTo(_step + 1);
+    if (!_validate()) return;
+    if (_step == _identityStep) {
+      _claimUsername();
+      return;
+    }
+    _goTo(_step + 1);
+  }
+
+  /// Kullanıcı adını sunucuda alır; alınamazsa adımda kalınır.
+  Future<void> _claimUsername() async {
+    final username = normalizeUsername(_draft.username.text);
+    if (username == _draft.claimedUsername) return _goTo(_identityStep + 1);
+    final userId = ref.read(signedInUserIdProvider);
+    if (userId == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(profileIdentityRepositoryProvider).setUsername(userId, username);
+      _draft.claimedUsername = username;
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _goTo(_identityStep + 1);
+    } on IdentityError catch (e) {
+      if (!mounted) return;
+      final field =
+          e.failure == IdentityFailure.usernameTaken ||
+          e.failure == IdentityFailure.usernameInvalid;
+      setState(() {
+        _busy = false;
+        _errors = {field ? 'username' : 'identity': e.message};
+      });
+    }
+  }
+
+  Future<void> _pickAvatar() async {
+    final action = await showAvatarSourceSheet(context, canRemove: _draft.avatar != null);
+    if (action == null || !mounted) return;
+    if (action == AvatarAction.remove) return _touch(() => _draft.avatar = null);
+    final source = action == AvatarAction.camera ? AvatarSource.camera : AvatarSource.gallery;
+    try {
+      final bytes = await ref.read(avatarPickerProvider).pick(source);
+      if (bytes != null && mounted) _touch(() => _draft.avatar = AvatarBytes(bytes));
+    } catch (_) {
+      if (mounted) setState(() => _errors = {'identity': 'Fotoğraf açılamadı.'});
+    }
   }
 
   void _back() {
@@ -178,6 +263,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
           notificationSettings: d.permission == PermissionState.denied
               ? const NotificationSettings(enabled: false, taskLeadMinutes: 10)
               : defaultNotificationSettings,
+          displayName: d.displayName.text.trim(),
         ),
       );
     } catch (e) {
@@ -190,9 +276,21 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       });
       return;
     }
+    // Fotoğraf isteğe bağlı: yüklenemezse onboarding yine tamamlanır.
+    var photoFailed = false;
+    final avatar = d.avatar;
+    final userId = ref.read(signedInUserIdProvider);
+    if (avatar != null && userId != null) {
+      try {
+        await applyAvatarChange(ref.read(profileIdentityRepositoryProvider), userId, avatar);
+      } catch (_) {
+        photoFailed = true;
+      }
+    }
     if (!mounted) return;
     setState(() => _busy = false);
     context.go('/bugun');
+    if (photoFailed) showSnack(context, photoLaterMessage);
   }
 
   Future<void> _confirmSignOut() async {
@@ -223,6 +321,16 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       onHealth: (v) => _touch(() => _draft.consentHealth = v),
       error: _errors['consent'],
     ),
+    _identityStep => IdentityStep(
+      displayName: _draft.displayName,
+      username: _draft.username,
+      avatar: _draft.avatar,
+      ownUsername: _draft.claimedUsername,
+      onPickAvatar: _pickAvatar,
+      onChanged: _touch,
+      errors: _errors,
+      enabled: !_busy,
+    ),
     _birthStep => BirthDateStep(
       day: _draft.day,
       month: _draft.month,
@@ -247,7 +355,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       onGoal: (v) => _touch(() => _draft.goal = v),
       errors: _errors,
     ),
-    4 => CaloriePreviewStep(result: _draft.preview(_currentYear)),
+    _previewStep => CaloriePreviewStep(result: _draft.preview(_currentYear)),
     _notificationStep => const NotificationStep(),
     _ => ThemeStep(
       family: _draft.family,
@@ -305,6 +413,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
             child: Text('Çıkış yap', style: TextStyle(color: mf(context).textMuted)),
           ),
         ];
+      case _identityStep:
+        return [MfButton(label: 'Devam', loading: _busy, onPressed: _busy ? null : _next)];
       default:
         return [MfButton(label: 'Devam', onPressed: _next)];
     }
