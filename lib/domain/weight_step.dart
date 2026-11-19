@@ -29,3 +29,21 @@ double stepWeight(double kg, int direction, String equipment, WeightUnit unit) {
   final result = toKg(next, unit);
   return result < 0 ? 0 : result;
 }
+
+double _round1(double v) => (v * 10).round() / 10;
+
+/// Kullanıcı biriminde, ızgaraya (ekipman adımı) en çok 0,15 uzaklıktaki değeri ızgaraya oturtur.
+/// kg ↔ lb dönüşümünün yuvarlama hatasını giderir (61,2 kg → 134,9 lb → 135 lb); gerçekten
+/// ızgara dışında olan değer (61,2 kg, 137,3 lb) korunur.
+double snapToStep(double value, String equipment, WeightUnit unit) {
+  final step = weightStep(equipment, unit);
+  final near = (value / step).round() * step;
+  return _round1((value - near).abs() <= 0.15 ? near : value);
+}
+
+/// Kullanıcı biriminde bir adım atar ve sonucu kullanıcı biriminde döndürür (alt sınır 0).
+/// Taslak değer bu birimde tutulur; kg'ye yalnızca set yazılırken çevrilir (kayma olmaz).
+double stepInUnit(double value, int direction, String equipment, WeightUnit unit) {
+  final next = snapToStep(value + direction * weightStep(equipment, unit), equipment, unit);
+  return next < 0 ? 0 : next;
+}

@@ -53,31 +53,59 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
 
   WeightUnit get _unit => ref.read(profileProvider).value?.units ?? WeightUnit.kg;
 
-  /// Taslak > ön doldurma (bu antrenmandaki son set, yoksa geçen seferin seti).
-  SetValues _valuesFor(ActiveWorkout w, String exerciseId) =>
-      ref.read(focusDraftsProvider)[exerciseId] ??
-      prefill(exerciseId, w, ref.read(lastSessionSetsProvider(exerciseId)).value ?? const []);
-
-  void _change(ActiveWorkout w, String exerciseId, SetValues Function(SetValues) f) {
-    // Basılı tutarken her adım son değeri okur.
-    final latest = ref.read(activeWorkoutControllerProvider).value ?? w;
-    ref.read(focusDraftsProvider.notifier).put(exerciseId, f(_valuesFor(latest, exerciseId)));
+  /// Taslak > ön doldurma (bu antrenmandaki son set, yoksa geçen seferin seti). Ağırlık
+  /// kullanıcının biriminde; kayıtlı kg bir kez çevrilip adım ızgarasına oturtulur.
+  FocusDraft _valuesFor(ActiveWorkout w, PlannedExercise p) {
+    final draft = ref.read(focusDraftsProvider)[p.exerciseId];
+    if (draft != null) return draft;
+    final v = prefill(
+      p.exerciseId,
+      w,
+      ref.read(lastSessionSetsProvider(p.exerciseId)).value ?? const [],
+    );
+    return FocusDraft(
+      weight: v.weightKg == null ? null : shownWeight(v.weightKg!, p.equipment, _unit),
+      reps: v.reps,
+      durationSeconds: v.durationSeconds,
+    );
   }
 
-  Future<void> _complete(PlannedExercise p, SetValues v) async {
+  void _change(ActiveWorkout w, PlannedExercise p, FocusDraft Function(FocusDraft) f) {
+    // Basılı tutarken her adım son değeri okur.
+    final latest = ref.read(activeWorkoutControllerProvider).value ?? w;
+    ref.read(focusDraftsProvider.notifier).put(p.exerciseId, f(_valuesFor(latest, p)));
+  }
+
+  /// Hata mesajı gösterip yutar (ör. diske yazılamadı).
+  Future<void> _guard(Future<void> Function() op) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await op();
+    } catch (e) {
+      debugPrint('Odak modu işlemi başarısız: $e');
+      messenger.showSnackBar(const SnackBar(content: Text('İşlem yapılamadı. Tekrar dene.')));
+    }
+  }
+
+  Future<void> _complete(PlannedExercise p, FocusDraft v) async {
     if (_busy) return;
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
+    // Snackbar eylemi ekran kapandıktan sonra da çalışabilir; ref yerine bildirici tutulur.
+    final ctl = _ctl;
     try {
       final duration = p.tracking == 'duration';
-      await _ctl.completeSet(
+      final s = await ctl.completeSet(
         SetValues(
-          weightKg: tracksWeight(p.tracking, p.equipment) ? v.weightKg : null,
+          weightKg: tracksWeight(p.tracking, p.equipment) && v.weight != null
+              ? toKg(v.weight!, _unit)
+              : null,
           reps: duration ? null : v.reps,
           durationSeconds: duration ? v.durationSeconds : null,
         ),
       );
       unawaited(HapticFeedback.lightImpact());
+      if (!mounted) return;
       ref.read(onSetCompletedProvider)(p.exerciseId);
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
@@ -85,10 +113,23 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           content: const Text('Set kaydedildi.'),
           duration: const Duration(seconds: 5),
           persist: false,
-          action: SnackBarAction(label: 'Geri al', onPressed: () => unawaited(_ctl.undoLast())),
+          action: SnackBarAction(
+            label: 'Geri al',
+            onPressed: () => unawaited(
+              ctl
+                  .undo(s)
+                  .then(
+                    (_) {},
+                    onError: (Object e) => messenger.showSnackBar(
+                      const SnackBar(content: Text('İşlem yapılamadı. Tekrar dene.')),
+                    ),
+                  ),
+            ),
+          ),
         ),
       );
     } catch (e) {
+      debugPrint('Set yazılamadı: $e');
       messenger.showSnackBar(const SnackBar(content: Text('Set kaydedilemedi. Tekrar dene.')));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -104,14 +145,17 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       unit: _unit,
       clock: ref.read(clockProvider),
     );
-    switch (r) {
-      case SetEditSave(:final set):
-        await _ctl.editSet(set);
-      case SetEditDelete():
-        await _ctl.deleteSet(s);
-      case null:
-        break;
-    }
+    if (!mounted) return;
+    await _guard(() async {
+      switch (r) {
+        case SetEditSave(:final set):
+          await _ctl.editSet(set);
+        case SetEditDelete():
+          await _ctl.deleteSet(s);
+        case null:
+          break;
+      }
+    });
   }
 
   Future<void> _add(ActiveWorkout w) async {
@@ -121,18 +165,20 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       ),
     );
     if (e == null || !mounted) return;
-    final cur = ref.read(activeWorkoutControllerProvider).value ?? w;
-    if (cur.plan.any((p) => p.exerciseId == e.id)) return _ctl.select(e.id);
-    final last = await ref.read(lastSessionSetsProvider(e.id).future);
-    await _ctl.addExercise(
-      PlannedExercise(
-        exerciseId: e.id,
-        tracking: e.tracking,
-        equipment: e.equipment,
-        targetSets: targetSetsFor(lastSessionSetCount: last.isEmpty ? null : last.length),
-        restSeconds: 90,
-      ),
-    );
+    await _guard(() async {
+      final cur = ref.read(activeWorkoutControllerProvider).value ?? w;
+      if (cur.plan.any((p) => p.exerciseId == e.id)) return _ctl.select(e.id);
+      final last = await ref.read(lastSessionSetsProvider(e.id).future);
+      await _ctl.addExercise(
+        PlannedExercise(
+          exerciseId: e.id,
+          tracking: e.tracking,
+          equipment: e.equipment,
+          targetSets: targetSetsFor(lastSessionSetCount: last.isEmpty ? null : last.length),
+          restSeconds: 90,
+        ),
+      );
+    });
   }
 
   Future<void> _showList(ActiveWorkout w, List<RailItem> items) async {
@@ -144,7 +190,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         for (final p in w.plan) p.exerciseId: '${w.doneSets(p.exerciseId)}/${p.targetSets}',
       },
     );
-    if (id != null) await _ctl.select(id);
+    if (id != null && mounted) await _guard(() => _ctl.select(id));
   }
 
   Future<void> _confirmFinish() async {
@@ -258,7 +304,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           ExerciseRail(
             items: items,
             currentId: w.currentExerciseId,
-            onSelect: (id) => _ctl.select(id),
+            onSelect: (id) => _guard(() => _ctl.select(id)),
             onAdd: () => _add(w),
           ),
         ],
@@ -272,7 +318,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     final id = p.exerciseId;
     final last = ref.watch(lastSessionSetsProvider(id)).value ?? const <LoggedSet>[];
     final unit = ref.watch(profileProvider.select((x) => x.value?.units)) ?? WeightUnit.kg;
-    final v = _valuesFor(w, id);
+    final v = _valuesFor(w, p);
     final done = w.sets.where((s) => s.exerciseId == id).toList()
       ..sort((a, b) => a.setIndex.compareTo(b.setIndex));
     final weight = tracksWeight(p.tracking, p.equipment);
@@ -287,7 +333,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     String fmt(LoggedSet s) {
       if (duration) return formatSeconds(s.durationSeconds ?? 0);
       if (weight && s.weightKg != null) {
-        return '${formatAmount(fromKg(s.weightKg!, unit))} × ${s.reps ?? '–'}';
+        return '${formatAmount(shownWeight(s.weightKg!, p.equipment, unit))} × ${s.reps ?? '–'}';
       }
       return '${s.reps ?? '–'}';
     }
@@ -324,7 +370,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 done: done,
                 target: p.targetSets,
                 onEdit: (s) => _edit(w, p, s, done.indexOf(s) + 1),
-                onAddSet: _canAddSet(w, id) ? () => _ctl.addTargetSet(id) : null,
+                onAddSet: _canAddSet(w, id) ? () => _guard(() => _ctl.addTargetSet(id)) : null,
               ),
             ),
             Text(
@@ -337,14 +383,14 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         if (weight)
           ValueStepper(
             valueKey: const Key('value-weight'),
-            valueText: v.weightKg == null ? null : formatAmount(fromKg(v.weightKg!, unit)),
+            valueText: v.weight == null ? null : formatAmount(v.weight!),
             unit: unit.name,
             noun: 'ağırlığı',
             onStep: (d) => _change(
               w,
-              id,
-              (x) => SetValues(
-                weightKg: nextWeight(x.weightKg, d, p.equipment, unit),
+              p,
+              (x) => FocusDraft(
+                weight: nextWeight(x.weight, d, p.equipment, unit),
                 reps: x.reps,
                 durationSeconds: x.durationSeconds,
               ),
@@ -357,7 +403,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
             clock: ref.read(clockProvider),
             onChanged: (s) => ref
                 .read(focusDraftsProvider.notifier)
-                .put(id, SetValues(weightKg: v.weightKg, reps: v.reps, durationSeconds: s)),
+                .put(id, FocusDraft(weight: v.weight, reps: v.reps, durationSeconds: s)),
           )
         else
           ValueStepper(
@@ -367,9 +413,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
             noun: 'tekrarı',
             onStep: (d) => _change(
               w,
-              id,
-              (x) => SetValues(
-                weightKg: x.weightKg,
+              p,
+              (x) => FocusDraft(
+                weight: x.weight,
                 reps: nextReps(x.reps, d),
                 durationSeconds: x.durationSeconds,
               ),
@@ -404,17 +450,17 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   }
 
   Widget _cta(ActiveWorkout w, PlannedExercise p) {
-    final v = _valuesFor(w, p.exerciseId);
+    final v = _valuesFor(w, p);
     final full = w.doneSets(p.exerciseId) >= p.targetSets;
     final next = full ? _nextExercise(w) : null;
     final valid = p.tracking == 'duration'
         ? (v.durationSeconds ?? 0) >= 1
-        : v.reps != null && (!tracksWeight(p.tracking, p.equipment) || v.weightKg != null);
+        : v.reps != null && (!tracksWeight(p.tracking, p.equipment) || v.weight != null);
 
     final (String label, VoidCallback? onTap) = !full
         ? ('Seti tamamla', valid && !_busy ? () => _complete(p, v) : null)
         : next != null
-        ? ('Sıradaki hareket', () => unawaited(_ctl.select(next)))
+        ? ('Sıradaki hareket', () => unawaited(_guard(() => _ctl.select(next))))
         : ('Bitir', () => unawaited(_confirmFinish()));
     return FocusCta(label: label, onPressed: onTap);
   }

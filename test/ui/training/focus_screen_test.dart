@@ -10,6 +10,7 @@ import 'package:missionfit/app/today_provider.dart';
 import 'package:missionfit/app/workout_providers.dart';
 import 'package:missionfit/domain/active_workout.dart';
 import 'package:missionfit/domain/muscle_coverage.dart';
+import 'package:missionfit/domain/units.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
@@ -96,17 +97,31 @@ class _FakeRepo extends Fake implements WorkoutRepository {
   final calls = <String>[];
   WorkoutFinish finishResult = const DiscardedEmpty();
 
+  bool failNextComplete = false;
+  bool failNextSelect = false;
+
   @override
-  Future<ActiveWorkout?> loadActive(String userId) async => active;
+  Future<ActiveWorkout?> loadActive(String userId) async {
+    calls.add('load');
+    return active;
+  }
 
   @override
   Future<void> savePlan(ActiveWorkout w) async {
+    if (failNextSelect) {
+      failNextSelect = false;
+      throw StateError('disk hatası');
+    }
     calls.add('savePlan');
     active = w;
   }
 
   @override
   Future<LoggedSet> completeSet(ActiveWorkout w, String exerciseId, SetValues v) async {
+    if (failNextComplete) {
+      failNextComplete = false;
+      throw StateError('UNIQUE constraint failed');
+    }
     final s = LoggedSet(
       id: 'new-${++_ids}',
       exerciseId: exerciseId,
@@ -143,6 +158,9 @@ class _FakeRepo extends Fake implements WorkoutRepository {
 }
 
 class _FakeQueries extends Fake implements WorkoutQueries {
+  _FakeQueries(this.benchLast);
+  final List<LoggedSet> benchLast;
+
   @override
   Future<Map<String, ExerciseOption>> exercisesByIds(Iterable<String> ids) async => {
     for (final id in ids)
@@ -154,7 +172,7 @@ class _FakeQueries extends Fake implements WorkoutQueries {
     String userId,
     String exerciseId, {
     String? excludingSessionId,
-  }) async => exerciseId == 'bench' ? _benchLast : const [];
+  }) async => exerciseId == 'bench' ? benchLast : const [];
 
   @override
   Future<List<ExerciseOption>> searchExercises(String query) async => [
@@ -188,6 +206,8 @@ Future<_Ctx> _pump(
   ThemeFamily family = ThemeFamily.mono,
   Brightness brightness = Brightness.dark,
   Size size = const Size(400, 900),
+  WeightUnit units = WeightUnit.kg,
+  List<LoggedSet>? benchLast,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -232,10 +252,10 @@ Future<_Ctx> _pump(
     overrides: [
       signedInUserIdProvider.overrideWithValue('u1'),
       profileProvider.overrideWith(
-        (ref) => Stream.value(const Profile(userId: 'u1', createdAt: 'x', updatedAt: 'x')),
+        (ref) => Stream.value(Profile(userId: 'u1', createdAt: 'x', updatedAt: 'x', units: units)),
       ),
       workoutRepositoryProvider.overrideWithValue(repo),
-      workoutQueriesProvider.overrideWithValue(_FakeQueries()),
+      workoutQueriesProvider.overrideWithValue(_FakeQueries(benchLast ?? _benchLast)),
       screenAwakeProvider.overrideWithValue(awake),
       onSetCompletedProvider.overrideWithValue(completed.add),
       clockProvider.overrideWithValue(() => clock.first),
@@ -541,4 +561,104 @@ void main() {
       }
     }
   }
+
+  group('Fix 1: lb', () {
+    testWidgets('boştan + ile 5, 10, 15, 20 (kayma yok)', (t) async {
+      await _pump(t, plan: const [_fly], units: WeightUnit.lb);
+      final seen = <String>[];
+      for (var i = 0; i < 4; i++) {
+        await t.tap(_btn('ağırlığı artır'));
+        await t.pump();
+        seen.add(_value(t, 'weight'));
+      }
+      // kablo lb adımı 10; barbell'i aşağıda deneriz
+      expect(seen, ['10', '20', '30', '40']);
+    });
+
+    testWidgets('135 lb ön dolum (61,2 kg) 135 gösterir; + 140; tamamlanınca kg yazılır', (
+      t,
+    ) async {
+      final ctx = await _pump(
+        t,
+        units: WeightUnit.lb,
+        benchLast: [_set('bench', 1, kg: 61.2), _set('bench', 2, kg: 61.2)],
+      );
+      expect(_value(t, 'weight'), '135');
+      expect(find.text('LB'), findsOneWidget);
+      expect(find.text('Geçen sefer: 135 × 8 · 135 × 8'), findsOneWidget);
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.sets.single.weightKg, 61.2);
+      await t.tap(_btn('ağırlığı artır'));
+      await t.pump();
+      expect(_value(t, 'weight'), '140');
+      for (var i = 0; i < 4; i++) {
+        await t.tap(_btn('ağırlığı artır'));
+      }
+      await t.pump();
+      expect(_value(t, 'weight'), '160');
+    });
+
+    testWidgets('barbell lb: boştan 5, 10, 15, 20', (t) async {
+      await _pump(t, units: WeightUnit.lb, benchLast: const []);
+      final seen = <String>[];
+      for (var i = 0; i < 4; i++) {
+        await t.tap(_btn('ağırlığı artır'));
+        await t.pump();
+        seen.add(_value(t, 'weight'));
+      }
+      expect(seen, ['5', '10', '15', '20']);
+    });
+  });
+
+  testWidgets('Fix 2: tamamlanan set noktasından silinip Geri al basılırsa önceki set kalır', (
+    t,
+  ) async {
+    final ctx = await _pump(t, sets: [_set('bench', 1)]);
+    await t.tap(_complete);
+    await t.pumpAndSettle();
+    expect(ctx.repo.active!.sets, hasLength(2));
+    await t.tap(_btn('Set 2, tamamlandı, düzenle'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Seti sil'));
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(TextButton, 'Sil'));
+    await t.pumpAndSettle();
+    expect(ctx.repo.active!.sets.map((s) => s.id), ['old-bench-1']);
+    expect(find.text('Geri al'), findsOneWidget);
+    await t.tap(find.text('Geri al'));
+    await t.pumpAndSettle();
+    expect(ctx.repo.active!.sets.map((s) => s.id), ['old-bench-1']);
+  });
+
+  group('Fix 3: hata kurtarma', () {
+    testWidgets('completeSet bir kez hata verir: mesaj, durum yenilenir, ikinci dokunuş yazar', (
+      t,
+    ) async {
+      final ctx = await _pump(t);
+      // Bellekteki durum eskidi: diskte zaten bir set var.
+      ctx.repo.active = ctx.repo.active!.logSet(_set('bench', 1));
+      ctx.repo.failNextComplete = true;
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(find.text('Set kaydedilemedi. Tekrar dene.'), findsOneWidget);
+      expect(ctx.repo.calls.where((c) => c == 'load'), hasLength(2));
+      expect(find.textContaining('SET 2/3'), findsOneWidget);
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.sets.map((s) => s.setIndex), [1, 2]);
+      expect(t.takeException(), isNull);
+    });
+
+    testWidgets('şeritte geçiş hatası yakalanır ve gösterilir', (t) async {
+      final ctx = await _pump(t);
+      ctx.repo.failNextSelect = true;
+      await t.ensureVisible(find.byKey(const Key('rail-dips')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const Key('rail-dips')));
+      await t.pumpAndSettle();
+      expect(t.takeException(), isNull);
+      expect(find.text('İşlem yapılamadı. Tekrar dene.'), findsOneWidget);
+    });
+  });
 }

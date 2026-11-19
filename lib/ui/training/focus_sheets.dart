@@ -60,7 +60,11 @@ class _SetEditor extends StatefulWidget {
 }
 
 class _SetEditorState extends State<_SetEditor> {
-  late double? _kg = widget.set.weightKg;
+  // Ağırlık kullanıcının biriminde tutulur; kg'ye yalnızca kaydederken çevrilir.
+  late final double? _shown0 = widget.set.weightKg == null
+      ? null
+      : shownWeight(widget.set.weightKg!, widget.plan.equipment, widget.unit);
+  late double? _shown = _shown0;
   late int? _reps = widget.set.reps;
   late int? _seconds = widget.set.durationSeconds;
 
@@ -79,7 +83,13 @@ class _SetEditorState extends State<_SetEditor> {
           setIndex: s.setIndex,
           reps: _duration ? null : _reps,
           durationSeconds: _duration ? _seconds : null,
-          weightKg: _weight ? _kg : null,
+          weightKg: !_weight
+              ? null
+              : _shown == _shown0
+              ? s.weightKg
+              : _shown == null
+              ? null
+              : toKg(_shown!, widget.unit),
           completedAt: s.completedAt,
         ),
       ),
@@ -124,11 +134,12 @@ class _SetEditorState extends State<_SetEditor> {
             if (_weight)
               ValueStepper(
                 valueKey: const Key('edit-weight'),
-                valueText: _kg == null ? null : formatAmount(fromKg(_kg!, widget.unit)),
+                valueText: _shown == null ? null : formatAmount(_shown!),
                 unit: widget.unit.name,
                 noun: 'ağırlığı',
-                onStep: (d) =>
-                    setState(() => _kg = nextWeight(_kg, d, widget.plan.equipment, widget.unit)),
+                onStep: (d) => setState(
+                  () => _shown = nextWeight(_shown, d, widget.plan.equipment, widget.unit),
+                ),
               ),
             if (_duration)
               DurationField(

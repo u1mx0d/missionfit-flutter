@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:missionfit/app/active_workout_controller.dart';
 import 'package:missionfit/app/profile_controller.dart';
 import 'package:missionfit/app/providers.dart';
+import 'package:missionfit/app/workout_providers.dart';
+import 'package:missionfit/data/sync/outbox.dart';
 import 'package:missionfit/data/db/database.dart';
 import 'package:missionfit/domain/active_workout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,6 +42,20 @@ Future<void> _seedExercise(AppDatabase db, String id) => db
         createdAt: 'x',
       ),
     );
+
+class _FlakyRepo extends WorkoutRepository {
+  _FlakyRepo(AppDatabase db) : super(db, OutboxRepository(db));
+  bool failNext = false;
+
+  @override
+  Future<LoggedSet> completeSet(ActiveWorkout w, String exerciseId, SetValues v) {
+    if (failNext) {
+      failNext = false;
+      throw StateError('benzersizlik ihlali');
+    }
+    return super.completeSet(w, exerciseId, v);
+  }
+}
 
 void main() {
   setUpAll(tzdata.initializeTimeZones);
@@ -115,7 +131,7 @@ void main() {
   test('completeSet seçili harekete yazar ve taslağı temizler', () async {
     await c.read(activeWorkoutControllerProvider.future);
     await ctl().start(const [bench, dips]);
-    c.read(focusDraftsProvider.notifier).put('bench', const SetValues(weightKg: 65, reps: 8));
+    c.read(focusDraftsProvider.notifier).put('bench', const FocusDraft(weight: 65, reps: 8));
     final s = await ctl().completeSet(const SetValues(weightKg: 65, reps: 8));
     expect(s.exerciseId, 'bench');
     expect(s.setIndex, 1);
@@ -133,6 +149,48 @@ void main() {
     ]);
     expect(both.map((s) => s.setIndex), [1, 2]);
   });
+
+  test('undo yalnızca verilen seti siler; set zaten silinmişse hiçbir şey yapmaz', () async {
+    await c.read(activeWorkoutControllerProvider.future);
+    await ctl().start(const [bench]);
+    final a = await ctl().completeSet(const SetValues(weightKg: 60, reps: 8));
+    final b = await ctl().completeSet(const SetValues(weightKg: 60, reps: 7));
+    await ctl().deleteSet(b);
+    await ctl().undo(b);
+    expect(state()!.sets, [a]);
+    await ctl().undoLast(); // son tamamlanan (b) zaten yok
+    expect(state()!.sets, [a]);
+    expect((await db.select(db.sessionSets).get()).map((r) => r.id), [a.id]);
+  });
+
+  test(
+    'completeSet hata verirse durum diskten yeniden yüklenir, sonraki deneme başarılı',
+    () async {
+      final flaky = _FlakyRepo(db);
+      final c2 = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          sharedPreferencesProvider.overrideWithValue(c.read(sharedPreferencesProvider)),
+          signedInUserIdProvider.overrideWithValue('u1'),
+          workoutRepositoryProvider.overrideWithValue(flaky),
+        ],
+      );
+      c2.listen(profileProvider, (_, _) {});
+      addTearDown(c2.dispose);
+      c2.listen(activeWorkoutControllerProvider, (_, _) {});
+      final n = c2.read(activeWorkoutControllerProvider.notifier);
+      await c2.read(activeWorkoutControllerProvider.future);
+      await n.start(const [bench]);
+      // Bellekteki durum eskir: set başka yoldan (ör. önceki sürüm) diske yazılmış.
+      final w = c2.read(activeWorkoutControllerProvider).value!;
+      await flaky.completeSet(w, 'bench', const SetValues(weightKg: 60, reps: 8));
+      flaky.failNext = true;
+      await expectLater(n.completeSet(const SetValues(weightKg: 60, reps: 8)), throwsStateError);
+      expect(c2.read(activeWorkoutControllerProvider).value!.sets, hasLength(1));
+      final s = await n.completeSet(const SetValues(weightKg: 60, reps: 8));
+      expect(s.setIndex, 2);
+    },
+  );
 
   test('undoLast son seti siler', () async {
     await c.read(activeWorkoutControllerProvider.future);
@@ -196,7 +254,7 @@ void main() {
   test('discard oturumu siler', () async {
     await c.read(activeWorkoutControllerProvider.future);
     await ctl().start(const [bench]);
-    c.read(focusDraftsProvider.notifier).put('bench', const SetValues(reps: 3));
+    c.read(focusDraftsProvider.notifier).put('bench', const FocusDraft(reps: 3));
     await ctl().discard();
     expect(state(), isNull);
     expect(c.read(focusDraftsProvider), isEmpty);

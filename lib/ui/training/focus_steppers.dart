@@ -296,12 +296,17 @@ class _DurationFieldState extends State<DurationField> {
   }
 }
 
-/// Ağırlık –/+: boş alan "+" ile ilk adımdan başlar; 0–1000 kg arası.
-double? nextWeight(double? kg, int direction, String equipment, WeightUnit unit) {
-  if (kg == null) return direction > 0 ? stepWeight(0, 1, equipment, unit) : null;
-  final next = stepWeight(kg, direction, equipment, unit);
-  return next > 1000 ? kg : next;
+/// Ağırlık –/+ KULLANICININ BİRİMİNDE ([shown] kg ya da lb): boş alan "+" ile ilk adımdan
+/// başlar, adım ızgarasına oturur; 0–1000 kg arası.
+double? nextWeight(double? shown, int direction, String equipment, WeightUnit unit) {
+  if (shown == null) return direction > 0 ? stepInUnit(0, 1, equipment, unit) : null;
+  final next = stepInUnit(shown, direction, equipment, unit);
+  return toKg(next, unit) > 1000 ? shown : next;
 }
+
+/// Kayıtlı kg'yi kullanıcı biriminde gösterim değerine çevirir (bir kez, ızgaraya oturtarak).
+double shownWeight(double kg, String equipment, WeightUnit unit) =>
+    snapToStep(fromKg(kg, unit), equipment, unit);
 
 /// Tekrar –/+: boş alan "+" ile 1'den başlar; 1–500 arası.
 int? nextReps(int? reps, int direction) {

@@ -93,37 +93,66 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
     );
   });
 
+  /// Yazım hata verirse bellekteki durum eskimiş olabilir (ör. yerel benzersizlik ihlali):
+  /// durum diskten yeniden yüklenir, hata yine fırlatılır; "Tekrar dene" doğru indeksle yazar.
+  Future<T> _resyncOnError<T>(Future<T> Function() op) async {
+    try {
+      return await op();
+    } catch (_) {
+      try {
+        state = AsyncData(await _repo.loadActive(_userId));
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  LoggedSet? _lastCompleted;
+
   /// Seçili hareketin sıradaki setini yazar.
-  Future<LoggedSet> completeSet(SetValues v) => _serial(() async {
-    final w = await _current();
-    final exerciseId = w.currentExerciseId;
-    if (exerciseId == null) throw StateError('Seçili hareket yok');
-    final s = await _repo.completeSet(w, exerciseId, v);
-    state = AsyncData(w.logSet(s));
-    ref.read(focusDraftsProvider.notifier).remove(exerciseId);
-    return s;
-  });
+  Future<LoggedSet> completeSet(SetValues v) => _serial(
+    () => _resyncOnError(() async {
+      final w = await _current();
+      final exerciseId = w.currentExerciseId;
+      if (exerciseId == null) throw StateError('Seçili hareket yok');
+      final s = await _repo.completeSet(w, exerciseId, v);
+      state = AsyncData(w.logSet(s));
+      _lastCompleted = s;
+      ref.read(focusDraftsProvider.notifier).remove(exerciseId);
+      return s;
+    }),
+  );
 
-  /// Son tamamlanan seti siler ("Geri al").
-  Future<void> undoLast() => _serial(() async {
-    final w = await _current();
-    if (w.sets.isEmpty) return;
-    final last = w.sets.last;
-    await _repo.deleteSet(last);
-    state = AsyncData(w.removeSet(last.id));
-  });
+  /// "Geri al": verilen seti (kimliğiyle) siler; set artık yoksa hiçbir şey yapmaz.
+  Future<void> undo(LoggedSet s) => _serial(
+    () => _resyncOnError(() async {
+      final w = await _current();
+      if (!w.sets.any((x) => x.id == s.id)) return;
+      await _repo.deleteSet(s);
+      state = AsyncData(w.removeSet(s.id));
+    }),
+  );
 
-  Future<void> editSet(LoggedSet s) => _serial(() async {
-    final w = await _current();
-    await _repo.updateSet(s);
-    state = AsyncData(w.replaceSet(s));
-  });
+  /// Son tamamlanan seti geri alır (o set silinmişse hiçbir şey yapmaz).
+  Future<void> undoLast() async {
+    final s = _lastCompleted;
+    if (s != null) await undo(s);
+  }
 
-  Future<void> deleteSet(LoggedSet s) => _serial(() async {
-    final w = await _current();
-    await _repo.deleteSet(s);
-    state = AsyncData(w.removeSet(s.id));
-  });
+  Future<void> editSet(LoggedSet s) => _serial(
+    () => _resyncOnError(() async {
+      final w = await _current();
+      await _repo.updateSet(s);
+      state = AsyncData(w.replaceSet(s));
+    }),
+  );
+
+  Future<void> deleteSet(LoggedSet s) => _serial(
+    () => _resyncOnError(() async {
+      final w = await _current();
+      await _repo.deleteSet(s);
+      state = AsyncData(w.removeSet(s.id));
+    }),
+  );
 
   /// Antrenmanı bitirir; set yoksa oturum silinir ([DiscardedEmpty]).
   Future<WorkoutFinish> finish() => _serial(() async {
@@ -152,13 +181,33 @@ final activeWorkoutControllerProvider =
 /// Set tamamlanınca odak modu çağırır. Varsayılan boş; dinlenme (Görev 9) bunu değiştirir.
 final onSetCompletedProvider = Provider<void Function(String exerciseId)>((ref) => (_) {});
 
+/// Odak modunda düzenlenen, henüz tamamlanmamış değerler. Ağırlık KULLANICININ BİRİMİNDE
+/// (kg ya da lb) ve adım ızgarasında tutulur; kg'ye yalnızca set yazılırken çevrilir.
+/// Böylece lb'de her "+" kg yuvarlamasıyla kaymaz.
+class FocusDraft {
+  const FocusDraft({this.weight, this.reps, this.durationSeconds});
+  final double? weight;
+  final int? reps;
+  final int? durationSeconds;
+
+  @override
+  bool operator ==(Object other) =>
+      other is FocusDraft &&
+      other.weight == weight &&
+      other.reps == reps &&
+      other.durationSeconds == durationSeconds;
+
+  @override
+  int get hashCode => Object.hash(weight, reps, durationSeconds);
+}
+
 /// Hareket başına –/+ ile değiştirilmiş ama henüz tamamlanmamış değerler (yalnızca bellekte).
 /// Harekete geri dönünce bu değerler korunur.
-class FocusDrafts extends Notifier<Map<String, SetValues>> {
+class FocusDrafts extends Notifier<Map<String, FocusDraft>> {
   @override
-  Map<String, SetValues> build() => const {};
+  Map<String, FocusDraft> build() => const {};
 
-  void put(String exerciseId, SetValues v) => state = {...state, exerciseId: v};
+  void put(String exerciseId, FocusDraft v) => state = {...state, exerciseId: v};
 
   void remove(String exerciseId) {
     if (!state.containsKey(exerciseId)) return;
@@ -168,4 +217,4 @@ class FocusDrafts extends Notifier<Map<String, SetValues>> {
   void clearAll() => state = const {};
 }
 
-final focusDraftsProvider = NotifierProvider<FocusDrafts, Map<String, SetValues>>(FocusDrafts.new);
+final focusDraftsProvider = NotifierProvider<FocusDrafts, Map<String, FocusDraft>>(FocusDrafts.new);
