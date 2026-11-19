@@ -63,6 +63,9 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(profiles, profiles.trainingLevel);
         await m.addColumn(profiles, profiles.goalMoves);
         await m.addColumn(profiles, profiles.focusAreas);
+        // Eski şemayla çekilen profil satırları yeni sütunları taşımaz; imleç silinince
+        // sonraki çekme profili baştan alır.
+        await (delete(syncCursors)..where((c) => c.targetTable.equals('profiles'))).go();
       }
     },
   );

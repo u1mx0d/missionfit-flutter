@@ -120,6 +120,10 @@ void main() {
       'INSERT INTO profiles (user_id, display_name, created_at, updated_at) '
       "VALUES ('u1', 'Ada', 'x', 'x')",
     );
+    raw.execute(
+      'CREATE TABLE sync_cursors (table_name TEXT NOT NULL, cursor TEXT NOT NULL, '
+      'last_pulled_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (table_name))',
+    );
     raw.execute('PRAGMA user_version = 1');
     raw.close();
 
@@ -159,12 +163,21 @@ void main() {
       'INSERT INTO profiles (user_id, display_name, created_at, updated_at) '
       "VALUES ('u1', 'Ada', 'x', 'x')",
     );
+    raw.execute(
+      'CREATE TABLE sync_cursors (table_name TEXT NOT NULL, cursor TEXT NOT NULL, '
+      'last_pulled_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (table_name))',
+    );
+    raw.execute(
+      "INSERT INTO sync_cursors (table_name, cursor) VALUES ('profiles', 'c1'), ('tasks', 'c2')",
+    );
     raw.execute('PRAGMA user_version = 2');
     raw.close();
 
     final migrated = AppDatabase.forTesting(NativeDatabase(file));
     addTearDown(migrated.close);
     final row = await migrated.select(migrated.profiles).getSingle();
+    final cursors = await migrated.select(migrated.syncCursors).get();
+    expect(cursors.map((c) => c.targetTable), ['tasks']);
     expect(row.displayName, 'Ada');
     expect(row.trainingStyle, isNull);
     expect(row.sideStyles, isNull);

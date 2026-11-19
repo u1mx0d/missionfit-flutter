@@ -17,7 +17,21 @@ class TrainingStyleScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(profileProvider).value;
+    final async = ref.watch(profileProvider);
+    final profile = async.value;
+    if (profile == null && async.hasError) {
+      return SubPage(
+        title: 'Antrenman tarzım',
+        children: [
+          const MfEmptyState(
+            icon: Icons.error_outline,
+            title: 'Profil yüklenemedi',
+            message: 'Bağlantını kontrol edip tekrar dene.',
+          ),
+          MfButton(label: 'Tekrar dene', onPressed: () => ref.invalidate(profileProvider)),
+        ],
+      );
+    }
     if (profile == null) {
       return const SubPage(
         title: 'Antrenman tarzım',
@@ -35,6 +49,8 @@ class _StyleForm extends ConsumerStatefulWidget {
   @override
   ConsumerState<_StyleForm> createState() => _StyleFormState();
 }
+
+const _mainMissing = 'Ana tarzını seç.';
 
 class _StyleFormState extends ConsumerState<_StyleForm> {
   late StyleSelection _style = StyleSelection(
@@ -92,6 +108,7 @@ class _StyleFormState extends ConsumerState<_StyleForm> {
             _error = null;
           }),
         ),
+        if (_error == _mainMissing) StepError(_error),
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Text(
@@ -108,6 +125,7 @@ class _StyleFormState extends ConsumerState<_StyleForm> {
             _error = null;
           }),
         ),
+        if (_error != null && _error != _mainMissing) StepError(_error),
         const SizedBox(height: 8),
         GoalChips(
           options: goalOptionsFor(_style, keep: _goals),
@@ -116,7 +134,6 @@ class _StyleFormState extends ConsumerState<_StyleForm> {
           onGoals: (g) => setState(() => _goals = g),
           onAreas: (a) => setState(() => _areas = a),
         ),
-        StepError(_error),
         const SizedBox(height: 16),
         MfButton(label: 'Kaydet', loading: _busy, onPressed: _busy ? null : _save),
       ],

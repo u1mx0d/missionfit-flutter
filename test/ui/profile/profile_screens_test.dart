@@ -14,6 +14,8 @@ import 'package:missionfit/app/theme_controller.dart';
 import 'package:missionfit/data/auth/auth_repository.dart';
 import 'package:missionfit/data/db/database.dart';
 import 'package:missionfit/ui/profile/profile_routes.dart';
+import 'package:missionfit/ui/profile/training_style_screen.dart';
+import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -283,7 +285,55 @@ void main() {
       await t.tap(find.widgetWithText(FilledButton, 'Kaydet'));
       await t.pumpAndSettle();
       expect(find.text('Ana tarzını seç.'), findsOneWidget);
+      // Hata kaydet düğmesinin değil, stil ızgarasının altında durur.
+      final msg = t.getTopLeft(find.text('Ana tarzını seç.')).dy;
+      expect(msg, lessThan(t.getTopLeft(find.text('SEVIYEN')).dy));
       expect((await ctx.profile).trainingStyle, isNull);
+    });
+
+    testWidgets('seviye seçilmeden kaydet: Seviyeni seç. seviyenin altında', (t) async {
+      await _pump(t, initial: '/profil/tarz');
+      await t.tap(find.byKey(const Key('style-calisthenics')));
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+      await t.pumpAndSettle();
+      expect(find.text('Seviyeni seç.'), findsOneWidget);
+      expect(
+        t.getTopLeft(find.text('Seviyeni seç.')).dy,
+        lessThan(t.getTopLeft(find.widgetWithText(FilledButton, 'Kaydet')).dy),
+      );
+      expect(
+        t.getTopLeft(find.text('Seviyeni seç.')).dy,
+        greaterThan(t.getTopLeft(find.text('SEVIYEN')).dy),
+      );
+    });
+
+    testWidgets('profil yüklenemezse hata ve Tekrar dene görünür', (t) async {
+      var fail = true;
+      final c = ProviderContainer(
+        overrides: [
+          profileProvider.overrideWith((ref) => fail ? Stream.error('x') : Stream.value(null)),
+        ],
+      );
+      addTearDown(c.dispose);
+      await t.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            theme: buildThemeData(
+              MfTheme.build(ThemeFamily.canli, Brightness.light, AccentColor.yesil),
+            ),
+            home: const TrainingStyleScreen(),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.text('Profil yüklenemedi'), findsOneWidget);
+      expect(find.text('Profil yükleniyor'), findsNothing);
+      fail = false;
+      await t.tap(find.text('Tekrar dene'));
+      await t.pumpAndSettle();
+      expect(find.text('Profil yüklenemedi'), findsNothing);
     });
   });
 
