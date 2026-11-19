@@ -173,6 +173,9 @@ class AuthRepository {
   bool get hasPasswordIdentity =>
       _auth.currentUser?.identities?.any((i) => i.provider == 'email') ?? false;
 
+  bool get hasGoogleIdentity =>
+      _auth.currentUser?.identities?.any((i) => i.provider == 'google') ?? false;
+
   Future<void> signOut() =>
       _run(AuthAction.callback, () => _auth.signOut(scope: SignOutScope.local));
 

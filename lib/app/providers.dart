@@ -84,6 +84,11 @@ final hasPasswordIdentityProvider = Provider<bool>(
   (ref) => ref.watch(authRepositoryProvider).hasPasswordIdentity,
 );
 
+/// Hesaba Google bağlıysa yeniden doğrulama Google ile yapılır (şifre hatırlanmayabilir).
+final hasGoogleIdentityProvider = Provider<bool>(
+  (ref) => ref.watch(authRepositoryProvider).hasGoogleIdentity,
+);
+
 final profileIdentityRepositoryProvider = Provider<ProfileIdentityRepository>(
   (ref) => DefaultProfileIdentityRepository(
     SupabaseIdentityRemote(ref.watch(supabaseProvider)),

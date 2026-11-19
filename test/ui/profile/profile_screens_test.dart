@@ -102,6 +102,7 @@ Future<_Ctx> _pump(
   WidgetTester tester, {
   String initial = '/profil',
   bool password = true,
+  bool? google,
   ProfilesCompanion? profile,
   ExportResult? export,
 }) async {
@@ -139,6 +140,7 @@ Future<_Ctx> _pump(
       signedInUserIdProvider.overrideWithValue('u1'),
       authRepositoryProvider.overrideWithValue(auth),
       hasPasswordIdentityProvider.overrideWithValue(password),
+      hasGoogleIdentityProvider.overrideWithValue(google ?? !password),
       currentUserEmailProvider.overrideWithValue('a@b.com'),
       accountServiceProvider.overrideWithValue(account),
       notificationServiceProvider.overrideWithValue(notifications),
@@ -370,6 +372,16 @@ void main() {
       expect(ctx.auth.calls, ['reauth-google', 'signOut']);
       expect(ctx.account.deletes, 1);
     });
+    testWidgets('şifre ve Google birlikteyse Google ile doğrulanır, şifre sorulmaz', (t) async {
+      final ctx = await _pump(t, initial: '/profil/hesap-sil', password: true, google: true);
+      expect(_field('Onay için şifren'), findsNothing);
+      await fill(t, pw: '');
+      await t.tap(find.widgetWithText(FilledButton, 'Hesabımı kalıcı olarak sil'));
+      await t.pumpAndSettle();
+      expect(ctx.auth.calls, ['reauth-google', 'signOut']);
+      expect(ctx.account.deletes, 1);
+    });
+
     testWidgets('I-2: farklı Google hesabı seçilirse silinmez ve mesaj gösterilir', (t) async {
       final ctx = await _pump(t, initial: '/profil/hesap-sil', password: false);
       ctx.auth.reauthFailure = const AuthFailure(googleWrongAccountMessage);

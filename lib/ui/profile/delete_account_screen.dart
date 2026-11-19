@@ -45,11 +45,17 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     super.dispose();
   }
 
+  /// Google bağlıysa Google ile doğrulanır; şifre yalnızca Google yoksa sorulur.
+  static bool _usesPassword({required bool password, required bool google}) => password && !google;
+
   bool get _confirmed => _key(_confirm.text) == _key(deleteConfirmWord);
 
   Future<void> _run() async {
     if (_busy || !_confirmed) return;
-    final hasPassword = ref.read(hasPasswordIdentityProvider);
+    final hasPassword = _usesPassword(
+      password: ref.read(hasPasswordIdentityProvider),
+      google: ref.read(hasGoogleIdentityProvider),
+    );
     final email = ref.read(currentUserEmailProvider);
     if (hasPassword && _password.text.isEmpty) {
       setState(() => _error = 'Devam etmek için şifreni yaz.');
@@ -100,7 +106,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
-    final hasPassword = ref.watch(hasPasswordIdentityProvider);
+    final hasPassword = _usesPassword(
+      password: ref.watch(hasPasswordIdentityProvider),
+      google: ref.watch(hasGoogleIdentityProvider),
+    );
     return SubPage(
       title: 'Hesabı sil',
       children: [
