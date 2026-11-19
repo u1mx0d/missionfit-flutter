@@ -1,6 +1,6 @@
 # Antrenman tarzı, seviye ve hedefler — Tasarım (kısa)
 
-Tarih: 2026-11-19. Durum: kullanıcı onayı bekliyor.
+Tarih: 2026-11-19. Durum: onaylandı (2026-11-19).
 
 ## Neden
 
