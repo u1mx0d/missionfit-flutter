@@ -1,6 +1,6 @@
 # Giriş ekranları ve sporcu kartı — Tasarım
 
-Tarih: 2026-11-19. Durum: kullanıcı onayı bekliyor.
+Tarih: 2026-11-19. Durum: onaylandı (2026-11-19).
 Taslaklar: `.superpowers/brainstorm/227680-1795075968/content/giris-yonleri.html` (A · Matris açılış ve C · Sporcu kartı birleştirildi).
 
 ## Neden
