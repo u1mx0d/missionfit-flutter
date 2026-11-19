@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/pending_signup.dart';
 import '../../app/providers.dart';
 import '../../domain/auth_rules.dart';
 import '../components/dot_grid.dart';
@@ -42,6 +43,7 @@ class _VerifyCodeScreenState extends ConsumerState<VerifyCodeScreen> {
       await ref
           .read(authRepositoryProvider)
           .verifySignUpCode(widget.email, normalizeOtp(_code.text)!);
+      await ref.read(pendingSignupEmailProvider.notifier).clear();
       // Yönlendirme oturum korumalarına bırakılır.
     } on AuthFailure catch (e) {
       if (mounted) setState(() => _failure = e.message);

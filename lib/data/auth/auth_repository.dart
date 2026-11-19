@@ -9,8 +9,11 @@ import '../../domain/auth_rules.dart';
 
 /// Arayüze gösterilecek Türkçe hata.
 class AuthFailure implements Exception {
-  const AuthFailure(this.message);
+  const AuthFailure(this.message, {this.code});
   final String message;
+
+  /// Supabase hata kodu (ör. `email_not_confirmed`); ekran akışı buna göre yön seçebilir.
+  final String? code;
 
   @override
   String toString() => message;
@@ -185,7 +188,8 @@ class AuthRepository {
     } on AuthFailure {
       rethrow;
     } catch (e) {
-      throw AuthFailure(authErrorMessage(toAuthErrorInfo(e), action));
+      final info = toAuthErrorInfo(e);
+      throw AuthFailure(authErrorMessage(info, action), code: info.code);
     }
   }
 }

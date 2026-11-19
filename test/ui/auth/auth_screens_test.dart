@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:missionfit/app/pending_signup.dart';
+import 'package:missionfit/app/profile_controller.dart' show sharedPreferencesProvider;
 import 'package:missionfit/app/providers.dart';
 import 'package:missionfit/data/auth/auth_repository.dart';
 import 'package:missionfit/env.dart';
@@ -13,15 +15,17 @@ import 'package:missionfit/ui/router.dart' show redirectFor;
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeRepo extends Fake implements AuthRepository {
   final calls = <String>[];
   AuthFailure? failure;
 
   Future<void> _do(String call) async {
+    final f = failure; // çağrı anındaki hata (test sonradan değiştirebilir)
     calls.add(call);
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    if (failure != null) throw failure!;
+    if (f != null) throw f;
   }
 
   @override
@@ -48,9 +52,12 @@ Env _env(String google) => Env(
   googleWebClientId: google,
 );
 
+late SharedPreferences _prefs;
+
 Future<GoRouter> _pump(
   WidgetTester tester,
   _FakeRepo repo, {
+  String? pendingEmail,
   String initial = '/giris',
   String google = '',
   ThemeFamily family = ThemeFamily.mono,
@@ -59,6 +66,8 @@ Future<GoRouter> _pump(
   tester.view.physicalSize = const Size(800, 2000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  SharedPreferences.setMockInitialValues({pendingSignupKey: ?pendingEmail});
+  _prefs = await SharedPreferences.getInstance();
   final router = GoRouter(
     initialLocation: initial,
     routes: [
@@ -77,6 +86,7 @@ Future<GoRouter> _pump(
       overrides: [
         authRepositoryProvider.overrideWithValue(repo),
         envProvider.overrideWithValue(_env(google)),
+        sharedPreferencesProvider.overrideWithValue(_prefs),
       ],
       child: MaterialApp.router(
         routerConfig: router,
@@ -127,6 +137,50 @@ void main() {
     expect(repo.calls, ['signUp:a@b.com']);
     expect(_loc(router), '/dogrula?email=a%40b.com');
     expect(find.text('Doğrula'), findsWidgets);
+    // Uygulama arka planda kapatılırsa koda geri dönülebilsin diye saklanır.
+    expect(_prefs.getString(pendingSignupKey), 'a@b.com');
+    await t.pumpAndSettle(const Duration(seconds: 61));
+  });
+
+  testWidgets('bekleyen kayıt varsa girişte kod kartı görünür ve koda götürür', (t) async {
+    final router = await _pump(t, _FakeRepo(), pendingEmail: 'a@b.com');
+    expect(find.text('Kaydını tamamla'), findsOneWidget);
+    await t.tap(find.text('Kodu gir'));
+    await t.pumpAndSettle();
+    expect(_loc(router), '/dogrula?email=a%40b.com');
+    await t.pumpAndSettle(const Duration(seconds: 61));
+  });
+
+  testWidgets('bekleyen kayıt kartı kapatılabilir', (t) async {
+    await _pump(t, _FakeRepo(), pendingEmail: 'a@b.com');
+    await t.tap(find.byKey(const Key('pending-signup-dismiss')));
+    await t.pumpAndSettle();
+    expect(find.text('Kaydını tamamla'), findsNothing);
+    expect(_prefs.getString(pendingSignupKey), isNull);
+  });
+
+  testWidgets('kod doğrulanınca bekleyen kayıt silinir', (t) async {
+    final repo = _FakeRepo();
+    await _pump(t, repo, initial: '/dogrula?email=a%40b.com', pendingEmail: 'a@b.com');
+    await t.enterText(find.byType(TextField).first, '123456');
+    await t.tap(find.widgetWithText(FilledButton, 'Doğrula'));
+    await t.pumpAndSettle();
+    expect(repo.calls, ['verify:a@b.com:123456']);
+    expect(_prefs.getString(pendingSignupKey), isNull);
+    await t.pumpAndSettle(const Duration(seconds: 61));
+  });
+
+  testWidgets('doğrulanmamış e-postayla girişte kod yeniden gönderilir ve koda gidilir', (t) async {
+    final repo = _FakeRepo()
+      ..failure = const AuthFailure('doğrulanmadı', code: 'email_not_confirmed');
+    final router = await _pump(t, repo);
+    await t.enterText(_field('E-posta'), 'a@b.com');
+    await t.enterText(_field('Şifre'), 'Sifre123');
+    await t.tap(find.text('Giriş yap'));
+    repo.failure = null;
+    await t.pumpAndSettle();
+    expect(repo.calls, ['signIn:a@b.com', 'resend:a@b.com']);
+    expect(_loc(router), '/dogrula?email=a%40b.com');
     await t.pumpAndSettle(const Duration(seconds: 61));
   });
 
