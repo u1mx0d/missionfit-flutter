@@ -92,7 +92,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         // Hesap silindi; çıkış hatası kullanıcıya gösterilmez.
       }
       if (!mounted) return;
-      context.go('/giris');
+      // Telefonda başka kart kalmadıysa giriş yerine hoş geldin ekranı açılır.
+      context.go(ref.read(knownAccountsProvider).isEmpty ? '/hosgeldin' : '/giris');
     } on AuthFailure catch (e) {
       if (e.message == googleWrongAccountMessage) {
         messenger?.showSnackBar(SnackBar(content: Text(e.message)));

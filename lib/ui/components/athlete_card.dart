@@ -36,6 +36,10 @@ const _placeholder = '····';
 
 String? _nonEmpty(String? s) => (s == null || s.trim().isEmpty) ? null : s.trim();
 
+/// Kart üstündeki soluk yazı rengi. Canlı degradenin üst bandında `textMuted` bazı
+/// vurgularda 4.5:1'in altında kalır; asıl yazıya biraz yaklaştırılır.
+Color athleteCardMutedColor(MfTheme t) => Color.lerp(t.textMuted, t.text, 0.35)!;
+
 /// Giriş/kayıt ekranlarının "sporcu kimliği" kartı. Salt sunum: gezinme ve sağlayıcı yok.
 class AthleteCard extends StatelessWidget {
   const AthleteCard({
@@ -81,7 +85,9 @@ class AthleteCard extends StatelessWidget {
       title = name ?? userLine ?? (formMode ? null : email);
       subtitle = name != null ? userLine : null;
     }
-    final since = data.memberSince == null ? null : formatMemberSince(data.memberSince!);
+    // Ay, kullanıcının yerel saatine göre gösterilir (UTC gece yarısı kayması olmasın).
+    final since = data.memberSince == null ? null : formatMemberSince(data.memberSince!.toLocal());
+    final muted = athleteCardMutedColor(t);
     final hasIdentity =
         data.avatarBytes != null ||
         _nonEmpty(data.avatarUrl) != null ||
@@ -102,12 +108,12 @@ class AthleteCard extends StatelessWidget {
     );
 
     final titleStyle = TextStyle(
-      color: title == null ? t.textMuted : t.text,
+      color: title == null ? muted : t.text,
       fontFamily: t.displayFont,
       fontWeight: FontWeight.w700,
       fontSize: 22,
     );
-    final smallStyle = TextStyle(color: t.textMuted, fontSize: 14);
+    final smallStyle = TextStyle(color: muted, fontSize: 14);
 
     Widget avatar = SizedBox.square(
       dimension: 64,
@@ -121,11 +127,17 @@ class AthleteCard extends StatelessWidget {
           : Center(child: MfLogo(size: 56)),
     );
     if (onAvatarTap != null) {
-      avatar = InkResponse(
-        key: const Key('athlete-card-avatar'),
+      avatar = Semantics(
+        button: true,
+        label: 'Fotoğrafı değiştir',
         onTap: onAvatarTap,
-        radius: 36,
-        child: avatar,
+        excludeSemantics: true,
+        child: InkResponse(
+          key: const Key('athlete-card-avatar'),
+          onTap: onAvatarTap,
+          radius: 36,
+          child: avatar,
+        ),
       );
     }
 
@@ -167,7 +179,7 @@ class AthleteCard extends StatelessWidget {
                         child: Text(
                           'SPORCU KİMLİĞİ',
                           style: TextStyle(
-                            color: t.textMuted,
+                            color: muted,
                             fontSize: 12,
                             letterSpacing: 1.6,
                             fontWeight: FontWeight.w600,
@@ -177,7 +189,7 @@ class AthleteCard extends StatelessWidget {
                       if (onRemove != null)
                         IconButton(
                           key: const Key('athlete-card-remove'),
-                          tooltip: 'Kartı kaldır',
+                          tooltip: 'Bu telefondan kaldır',
                           onPressed: onRemove,
                           icon: Icon(Icons.close, color: t.textMuted, size: 20),
                         )
@@ -211,7 +223,7 @@ class AthleteCard extends StatelessWidget {
                     const SizedBox(height: 14),
                     switcher(
                       email ?? _placeholder,
-                      smallStyle.copyWith(color: email == null ? t.textMuted : t.text),
+                      smallStyle.copyWith(color: email == null ? muted : t.text),
                       key: const Key('email'),
                     ),
                     if (data.passwordOk) ...[

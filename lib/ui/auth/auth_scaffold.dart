@@ -42,6 +42,9 @@ class AuthScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = mf(context);
     final back = onBack ?? () => context.go('/hosgeldin');
+    // Klavye açıkken üst kart gizlenir; form ve düğme görünür kalsın.
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final noAnim = MediaQuery.disableAnimationsOf(context);
     Widget scaffold = Scaffold(
       backgroundColor: Colors.transparent,
       body: MfBackground(
@@ -65,7 +68,11 @@ class AuthScaffold extends StatelessWidget {
                         ),
                       ),
                     if (header != null)
-                      header!
+                      AnimatedSize(
+                        duration: noAnim ? Duration.zero : const Duration(milliseconds: 200),
+                        alignment: Alignment.topCenter,
+                        child: keyboard ? const SizedBox.shrink() : header!,
+                      )
                     else
                       const Align(alignment: Alignment.centerLeft, child: MfLogo(size: 40)),
                     const SizedBox(height: 16),
@@ -141,6 +148,8 @@ class PasswordField extends StatefulWidget {
     this.errorText,
     this.enabled = true,
     this.autofillHints,
+    this.textInputAction,
+    this.onSubmitted,
     super.key,
   });
   final String label;
@@ -148,6 +157,8 @@ class PasswordField extends StatefulWidget {
   final String? errorText;
   final bool enabled;
   final Iterable<String>? autofillHints;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   State<PasswordField> createState() => _PasswordFieldState();
@@ -164,6 +175,8 @@ class _PasswordFieldState extends State<PasswordField> {
     errorText: widget.errorText,
     enabled: widget.enabled,
     autofillHints: widget.autofillHints,
+    textInputAction: widget.textInputAction,
+    onSubmitted: widget.onSubmitted,
     suffix: IconButton(
       tooltip: _hidden ? 'Şifreyi göster' : 'Şifreyi gizle',
       icon: Icon(_hidden ? Icons.visibility : Icons.visibility_off),

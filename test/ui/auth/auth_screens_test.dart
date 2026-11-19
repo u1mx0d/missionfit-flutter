@@ -204,6 +204,32 @@ void main() {
       expect(progress(t), 1);
     });
 
+    testWidgets('animasyonun ortasında çıkıp dönünce tekrar oynamaz', (t) async {
+      final r = await _pump(t, _FakeRepo(), initial: '/giris');
+      r.go('/hosgeldin');
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 500));
+      expect(progress(t), lessThan(1));
+      r.go('/giris');
+      await t.pumpAndSettle();
+      r.go('/hosgeldin');
+      await t.pump(); // rota çözümlenir
+      await t.pump(); // ekranın ilk karesi
+      expect(progress(t), 1);
+    });
+
+    testWidgets('ilk 500 ms içinde görünmeyen düğmeye dokunmak gezinmez', (t) async {
+      final r = await _pump(t, _FakeRepo(), initial: '/giris');
+      r.go('/hosgeldin');
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 300));
+      await t.tap(find.text('E-posta ile kayıt ol'), warnIfMissed: false);
+      await t.pump(const Duration(milliseconds: 100));
+      expect(_loc(r), '/hosgeldin');
+      await t.pumpAndSettle();
+      expect(_loc(r), '/hosgeldin');
+    });
+
     testWidgets('ilk gelişte animasyon sürerken progress < 1', (t) async {
       t.view.physicalSize = const Size(800, 2000);
       t.view.devicePixelRatio = 1;
@@ -254,13 +280,31 @@ void main() {
       expect(find.text('Alperen'), findsOneWidget);
     });
 
-    testWidgets('kartı kaldırmak kaydı siler, e-posta kalır', (t) async {
+    testWidgets('kartı kaldırmak kaydı siler, eşleşen e-posta temizlenir, bildirim çıkar', (
+      t,
+    ) async {
       await _pump(t, _FakeRepo(), knownAccounts: [_alperen]);
+      expect(find.byTooltip('Bu telefondan kaldır'), findsOneWidget);
       await t.tap(find.byKey(const Key('athlete-card-remove')));
       await t.pumpAndSettle();
       expect(_card(t).mode, AthleteCardMode.sample);
-      expect(t.widget<TextField>(_field('E-posta')).controller!.text, 'a@b.com');
+      expect(t.widget<TextField>(_field('E-posta')).controller!.text, isEmpty);
       expect(jsonDecode(_prefs.getString(knownAccountsKey)!), isEmpty);
+      expect(find.text('Kart bu telefondan kaldırıldı.'), findsOneWidget);
+      expect(find.widgetWithText(SnackBarAction, 'Geri al'), findsOneWidget);
+    });
+
+    testWidgets('"Geri al" kartı ve e-postayı geri getirir', (t) async {
+      await _pump(t, _FakeRepo(), knownAccounts: [_alperen]);
+      await t.tap(find.byKey(const Key('athlete-card-remove')));
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(SnackBarAction, 'Geri al'));
+      await t.pumpAndSettle();
+      expect(_card(t).mode, AthleteCardMode.saved);
+      expect(find.text('Alperen'), findsOneWidget);
+      expect(t.widget<TextField>(_field('E-posta')).controller!.text, 'a@b.com');
+      final saved = jsonDecode(_prefs.getString(knownAccountsKey)!) as List;
+      expect(saved.single, _alperen);
     });
 
     testWidgets('kayıtlı kart yokken örnek kart ve boş e-posta', (t) async {
@@ -293,6 +337,68 @@ void main() {
       await t.tap(find.byTooltip('Geri'));
       await t.pumpAndSettle();
       expect(_loc(r), '/hosgeldin');
+    });
+  });
+
+  group('klavye açıkken', () {
+    Future<void> keyboard(WidgetTester t) async {
+      t.view.viewInsets = const FakeViewPadding(bottom: 600);
+      addTearDown(t.view.resetViewInsets);
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('kayıt: kart gizlenir, düğme görünür', (t) async {
+      await _pump(t, _FakeRepo(), initial: '/kayit');
+      expect(find.byType(AthleteCard), findsOneWidget);
+      await keyboard(t);
+      expect(find.byType(AthleteCard), findsNothing);
+      expect(find.text('Kartımı oluştur'), findsOneWidget);
+    });
+
+    testWidgets('giriş: kart gizlenir, düğme görünür', (t) async {
+      await _pump(t, _FakeRepo(), knownAccounts: [_alperen]);
+      expect(find.byType(AthleteCard), findsOneWidget);
+      await keyboard(t);
+      expect(find.byType(AthleteCard), findsNothing);
+      expect(find.text('Giriş yap'), findsOneWidget);
+    });
+
+    testWidgets('giriş: alan eylemleri; son alanda "tamam" giriş yapar', (t) async {
+      final repo = _FakeRepo();
+      await _pump(t, repo);
+      expect(t.widget<TextField>(_field('E-posta')).textInputAction, TextInputAction.next);
+      expect(t.widget<TextField>(_field('Şifre')).textInputAction, TextInputAction.done);
+      await t.enterText(_field('E-posta'), 'a@b.com');
+      await t.enterText(_field('Şifre'), 'Sifre123');
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pumpAndSettle();
+      expect(repo.calls, ['signIn:a@b.com']);
+    });
+
+    testWidgets('kayıt: son alanda "tamam" kaydı gönderir', (t) async {
+      final repo = _FakeRepo();
+      await _pump(t, repo, initial: '/kayit');
+      expect(t.widget<TextField>(_field('Şifre')).textInputAction, TextInputAction.next);
+      await t.enterText(_field('E-posta'), 'a@b.com');
+      await t.enterText(_field('Şifre'), 'Sifre123');
+      await t.enterText(_field('Şifre tekrar'), 'Sifre123');
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pumpAndSettle();
+      expect(repo.calls, ['signUp:a@b.com']);
+    });
+
+    testWidgets('kod: "tamam" doğrular', (t) async {
+      final repo = _FakeRepo();
+      await _pump(
+        t,
+        repo,
+        initial: '/dogrula?email=a%40b.com',
+        overrides: [activeStampHoldProvider.overrideWithValue(Duration.zero)],
+      );
+      await t.enterText(_field('Doğrulama kodu'), '123456');
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pumpAndSettle();
+      expect(repo.calls, ['verify:a@b.com:123456']);
     });
   });
 

@@ -108,6 +108,7 @@ Future<_Ctx> _pump(
   bool? google,
   ProfilesCompanion? profile,
   ExportResult? export,
+  List<KnownAccount> otherKnown = const [],
 }) async {
   tester.view.physicalSize = const Size(800, 3000);
   tester.view.devicePixelRatio = 1;
@@ -138,6 +139,7 @@ Future<_Ctx> _pump(
         email: 'a@b.com',
         lastSignedInAt: DateTime.utc(2026, 1, 1),
       ).toJson(),
+      for (final a in otherKnown) a.toJson(),
     ]),
   });
   final sp = await SharedPreferences.getInstance();
@@ -166,6 +168,10 @@ Future<_Ctx> _pump(
       GoRoute(
         path: '/giris',
         builder: (_, _) => const Scaffold(body: Text('GİRİŞ')),
+      ),
+      GoRoute(
+        path: '/hosgeldin',
+        builder: (_, _) => const Scaffold(body: Text('HOŞ GELDİN')),
       ),
       GoRoute(path: '/profil', builder: (_, _) => const ProfileScreen(), routes: profileSubRoutes),
     ],
@@ -365,15 +371,32 @@ void main() {
       expect(find.text('GİRİŞ'), findsNothing);
     });
 
-    testWidgets('başarılı akış: yeniden doğrula, sil, çıkış, /giris', (t) async {
+    testWidgets('başarılı akış: yeniden doğrula, sil, çıkış; kart kalmadıysa /hosgeldin', (
+      t,
+    ) async {
       final ctx = await _pump(t, initial: '/profil/hesap-sil');
       await fill(t);
       await t.tap(find.widgetWithText(FilledButton, 'Hesabımı kalıcı olarak sil'));
       await t.pumpAndSettle();
       expect(ctx.auth.calls, ['reauth-password:a@b.com', 'signOut']);
       expect(ctx.account.deletes, 1);
-      expect(find.text('GİRİŞ'), findsOneWidget);
+      expect(find.text('HOŞ GELDİN'), findsOneWidget);
       expect(ctx.container.read(knownAccountsProvider), isEmpty);
+    });
+
+    testWidgets('silmeden sonra başka kart kaldıysa /giris', (t) async {
+      final ctx = await _pump(
+        t,
+        initial: '/profil/hesap-sil',
+        otherKnown: [
+          KnownAccount(userId: 'u2', email: 'c@d.com', lastSignedInAt: DateTime.utc(2025, 1, 1)),
+        ],
+      );
+      await fill(t);
+      await t.tap(find.widgetWithText(FilledButton, 'Hesabımı kalıcı olarak sil'));
+      await t.pumpAndSettle();
+      expect(find.text('GİRİŞ'), findsOneWidget);
+      expect(ctx.container.read(knownAccountsProvider).map((a) => a.userId), ['u2']);
     });
 
     testWidgets('yalnızca Google kimliğinde Google ile yeniden doğrulanır', (t) async {

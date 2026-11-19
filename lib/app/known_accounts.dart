@@ -136,5 +136,10 @@ final knownAccountSyncProvider = Provider<void>((ref) {
   ref.listen(currentUserEmailProvider, (_, _) => sync());
   ref.listen(signedInUserIdProvider, (_, _) => sync());
   ref.listen(currentUserIdProvider, (_, _) => sync());
-  sync();
+  // İlk eşitleme sağlayıcı kurulurken başka sağlayıcıya yazmasın diye ertelenir.
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
+  Future.microtask(() {
+    if (!disposed) sync();
+  });
 });

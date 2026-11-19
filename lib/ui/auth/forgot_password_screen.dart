@@ -152,6 +152,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             keyboardType: TextInputType.emailAddress,
             errorText: _errors['email'],
             enabled: !_busy,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _sendCode(),
           ),
           const SizedBox(height: 16),
           AuthErrorText(_failure),
@@ -163,6 +165,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             keyboardType: TextInputType.number,
             errorText: _errors['code'],
             enabled: !_busy,
+            textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: 12),
           PasswordField(
@@ -170,6 +173,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             controller: _password,
             errorText: _errors['password'],
             enabled: !_busy,
+            textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: 12),
           PasswordField(
@@ -177,6 +181,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             controller: _confirm,
             errorText: _errors['passwordConfirm'],
             enabled: !_busy,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _reset(),
           ),
           const SizedBox(height: 16),
           AuthErrorText(_failure),

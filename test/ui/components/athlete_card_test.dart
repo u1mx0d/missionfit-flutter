@@ -4,6 +4,7 @@ import 'package:missionfit/ui/components/athlete_card.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
+import 'package:missionfit/ui/theme/tokens.dart' show contrastRatio;
 
 Widget _wrap(
   Widget child, {
@@ -36,6 +37,53 @@ void main() {
       });
     }
   }
+
+  test('soluk yazı ve etiket degrade üstünde ve zeminde ≥ 4.5 (tüm vurgular)', () {
+    for (final f in ThemeFamily.values) {
+      for (final b in Brightness.values) {
+        for (final a in AccentColor.values) {
+          final t = MfTheme.build(f, b, a);
+          final muted = athleteCardMutedColor(t);
+          for (final bg in [?t.gradientTop, t.surface]) {
+            expect(
+              contrastRatio(muted, bg),
+              greaterThanOrEqualTo(4.5),
+              reason: '${f.name}/${b.name}/${a.name} $muted/$bg',
+            );
+          }
+        }
+      }
+    }
+  });
+
+  testWidgets('etiket ve soluk satırlar kart soluk rengini kullanır', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        AthleteCard(
+          mode: AthleteCardMode.saved,
+          data: AthleteCardData(displayName: 'Alperen', memberSince: DateTime(2026, 11, 2)),
+        ),
+      ),
+    );
+    final t = MfTheme.build(ThemeFamily.canli, Brightness.light, AccentColor.yesil);
+    for (final s in ['SPORCU KİMLİĞİ', 'Tekrar hoş geldin', 'Üye: Kasım 2026']) {
+      expect(tester.widget<Text>(find.text(s)).style!.color, athleteCardMutedColor(t), reason: s);
+    }
+  });
+
+  testWidgets('üyelik ayı yerel saate göre gösterilir', (tester) async {
+    // Yerelde 1 Kasım 00:30; UTC'si doğu dilimlerinde 31 Ekim'e düşer.
+    final utc = DateTime(2026, 11, 1, 0, 30).toUtc();
+    await tester.pumpWidget(
+      _wrap(
+        AthleteCard(
+          mode: AthleteCardMode.saved,
+          data: AthleteCardData(displayName: 'Alperen', memberSince: utc),
+        ),
+      ),
+    );
+    expect(find.text('Üye: Kasım 2026'), findsOneWidget);
+  });
 
   testWidgets('empty: yer tutucu var, damga yok', (tester) async {
     await tester.pumpWidget(_wrap(const AthleteCard(mode: AthleteCardMode.empty)));
@@ -122,6 +170,7 @@ void main() {
     expect(find.byKey(const Key('athlete-card-remove')), findsNothing);
     var n = 0;
     await tester.pumpWidget(_wrap(AthleteCard(mode: AthleteCardMode.saved, onRemove: () => n++)));
+    expect(find.byTooltip('Bu telefondan kaldır'), findsOneWidget);
     await tester.tap(find.byKey(const Key('athlete-card-remove')));
     expect(n, 1);
   });
@@ -139,6 +188,12 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('athlete-card-avatar')));
     expect(n, 1);
+    final handle = tester.ensureSemantics();
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Fotoğrafı değiştir')),
+      isSemantics(label: 'Fotoğrafı değiştir', isButton: true, hasTapAction: true),
+    );
+    handle.dispose();
   });
 
   testWidgets('avatarUrl varsa mevcut avatar anahtarı çalışır', (tester) async {

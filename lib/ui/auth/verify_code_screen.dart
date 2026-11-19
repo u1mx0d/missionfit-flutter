@@ -125,6 +125,8 @@ class _VerifyCodeScreenState extends ConsumerState<VerifyCodeScreen> {
           keyboardType: TextInputType.number,
           errorText: _error,
           enabled: !_busy,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _submit(),
         ),
         const SizedBox(height: 16),
         AuthErrorText(_failure),

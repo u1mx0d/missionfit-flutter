@@ -84,6 +84,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
+  /// Kartı bu telefondan kaldırır; bildirimdeki "Geri al" aynı kaydı geri yazar.
+  Future<void> _removeCard(KnownAccount account) async {
+    final notifier = ref.read(knownAccountsProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+    await notifier.remove(account.userId);
+    if (!mounted) return;
+    // Alandaki e-posta kaldırılan karta aitse temizlenir.
+    final matched = _email.text.trim().toLowerCase() == account.email;
+    if (matched) _email.clear();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Kart bu telefondan kaldırıldı.'),
+          action: SnackBarAction(
+            label: 'Geri al',
+            onPressed: () async {
+              await notifier.upsert(account);
+              if (mounted && matched && _email.text.isEmpty) _email.text = account.email;
+            },
+          ),
+        ),
+      );
+  }
+
   void _goVerify(String email) => context.go('/dogrula?email=${Uri.encodeQueryComponent(email)}');
 
   @override
@@ -115,7 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       avatarUrl: known.avatarUrl,
                       memberSince: known.memberSince,
                     ),
-                    onRemove: () => ref.read(knownAccountsProvider.notifier).remove(known.userId),
+                    onRemove: () => _removeCard(known),
                   ),
           ),
           if (pending != null) ...[
@@ -136,6 +161,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 autofillHints: const [AutofillHints.email],
                 errorText: _errors['email'],
                 enabled: !_busy,
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
               PasswordField(
@@ -144,6 +170,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 autofillHints: const [AutofillHints.password],
                 errorText: _errors['password'],
                 enabled: !_busy,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
               ),
             ],
           ),

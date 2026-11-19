@@ -95,6 +95,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 autofillHints: const [AutofillHints.email],
                 errorText: _errors['email'],
                 enabled: !_busy,
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
               PasswordField(
@@ -103,6 +104,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 autofillHints: const [AutofillHints.newPassword],
                 errorText: _errors['password'],
                 enabled: !_busy,
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
               PasswordField(
@@ -111,6 +113,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 autofillHints: const [AutofillHints.newPassword],
                 errorText: _errors['passwordConfirm'],
                 enabled: !_busy,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
               ),
             ],
           ),
