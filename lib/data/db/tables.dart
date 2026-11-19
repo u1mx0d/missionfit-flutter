@@ -40,6 +40,13 @@ class Profiles extends Table {
   TextColumn get username => text().nullable()();
   TextColumn get avatarPath => text().nullable()();
 
+  /// Antrenman tarzı alanları. Liste sütunları JSON metin (`["a","b"]`); null = boş liste.
+  TextColumn get trainingStyle => text().nullable()();
+  TextColumn get sideStyles => text().nullable()();
+  TextColumn get trainingLevel => text().nullable()();
+  TextColumn get goalMoves => text().nullable()();
+  TextColumn get focusAreas => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {userId};
 }

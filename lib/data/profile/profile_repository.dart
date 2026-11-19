@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../domain/calories.dart';
 import '../../domain/notification_settings.dart';
+import '../../domain/training_style.dart';
 import '../../domain/units.dart';
 import '../../domain/week.dart';
 import '../../ui/theme/accents.dart';
@@ -26,6 +27,26 @@ Object? _tryDecode(String s) {
   } catch (_) {
     return null;
   }
+}
+
+/// Liste değerini ([List] ya da JSON metni) sunucu adlarına göre çözer; bilinmeyenleri atar.
+List<T> _enumList<T extends Enum>(List<T> values, Object? raw) {
+  final decoded = raw is String ? _tryDecode(raw) : raw;
+  if (decoded is! List) return const [];
+  return [
+    for (final e in decoded)
+      if (e is String) ?_byName(values, e),
+  ];
+}
+
+/// Hedef hareket anahtarları; [goalMoveLabels] dışındakiler atılır.
+List<String> _goalMoveList(Object? raw) {
+  final decoded = raw is String ? _tryDecode(raw) : raw;
+  if (decoded is! List) return const [];
+  return [
+    for (final e in decoded)
+      if (e is String && goalMoveLabels.containsKey(e)) e,
+  ];
 }
 
 /// Yerel profil satırı yok ve sunucudan da alınamadı (ör. ilk eşitleme gelmedi, çevrimdışı).
@@ -70,6 +91,11 @@ class Profile {
     required this.updatedAt,
     this.username,
     this.avatarPath,
+    this.trainingStyle,
+    this.sideStyles = const [],
+    this.trainingLevel,
+    this.goalMoves = const [],
+    this.focusAreas = const [],
   });
 
   final String userId;
@@ -101,6 +127,13 @@ class Profile {
   final String? username;
   final String? avatarPath;
 
+  /// Antrenman tarzı: ana tarz, yan tarzlar (ana tarzı içermez), seviye, hedef hareketler, odak.
+  final TrainingStyle? trainingStyle;
+  final List<TrainingStyle> sideStyles;
+  final TrainingLevel? trainingLevel;
+  final List<String> goalMoves;
+  final List<FocusArea> focusAreas;
+
   factory Profile.fromRow(d.Profile r) {
     final ns = _tryDecode(r.notificationSettings);
     return Profile(
@@ -128,6 +161,11 @@ class Profile {
       updatedAt: r.updatedAt,
       username: r.username,
       avatarPath: r.avatarPath,
+      trainingStyle: _byName(TrainingStyle.values, r.trainingStyle),
+      sideStyles: _enumList(TrainingStyle.values, r.sideStyles),
+      trainingLevel: _byName(TrainingLevel.values, r.trainingLevel),
+      goalMoves: _goalMoveList(r.goalMoves),
+      focusAreas: _enumList(FocusArea.values, r.focusAreas),
     );
   }
 
@@ -158,6 +196,11 @@ class Profile {
     'updated_at': updatedAt,
     'username': username,
     'avatar_path': avatarPath,
+    'training_style': trainingStyle?.name,
+    'side_styles': [for (final s in sideStyles) s.name],
+    'training_level': trainingLevel?.name,
+    'goal_moves': List<String>.of(goalMoves),
+    'focus_areas': [for (final f in focusAreas) f.name],
   };
 
   /// Sunucu satırı (snake_case, jsonb -> Map, boolean -> bool) -> yerel profil. Tolerant.
@@ -197,9 +240,16 @@ class Profile {
       updatedAt: str('updated_at') ?? now,
       username: str('username'),
       avatarPath: str('avatar_path'),
+      trainingStyle: _byName(TrainingStyle.values, str('training_style')),
+      sideStyles: _enumList(TrainingStyle.values, m['side_styles']),
+      trainingLevel: _byName(TrainingLevel.values, str('training_level')),
+      goalMoves: _goalMoveList(m['goal_moves']),
+      focusAreas: _enumList(FocusArea.values, m['focus_areas']),
     );
   }
 
+  /// Tam satır yükü. `training_style` ve `side_styles` her zaman birlikte gider (sunucu,
+  /// ana tarzın yan tarzlarda geçtiği güncellemeyi reddeder).
   Map<String, Object?> toPayload() => toRow()
     ..remove('updated_at')
     ..remove('username')
@@ -230,6 +280,11 @@ class Profile {
     updatedAt: Value(updatedAt),
     username: Value(username),
     avatarPath: Value(avatarPath),
+    trainingStyle: Value(trainingStyle?.name),
+    sideStyles: Value(jsonEncode([for (final s in sideStyles) s.name])),
+    trainingLevel: Value(trainingLevel?.name),
+    goalMoves: Value(jsonEncode(goalMoves)),
+    focusAreas: Value(jsonEncode([for (final f in focusAreas) f.name])),
   );
 
   Profile copyWith({
@@ -251,6 +306,11 @@ class Profile {
     NotificationSettings? notificationSettings,
     bool? onboardingCompleted,
     Object? consentedAt = _keep,
+    Object? trainingStyle = _keep,
+    List<TrainingStyle>? sideStyles,
+    Object? trainingLevel = _keep,
+    List<String>? goalMoves,
+    List<FocusArea>? focusAreas,
   }) => Profile(
     userId: userId,
     displayName: identical(displayName, _keep) ? this.displayName : displayName as String?,
@@ -278,6 +338,15 @@ class Profile {
     updatedAt: updatedAt,
     username: username,
     avatarPath: avatarPath,
+    trainingStyle: identical(trainingStyle, _keep)
+        ? this.trainingStyle
+        : trainingStyle as TrainingStyle?,
+    sideStyles: sideStyles ?? this.sideStyles,
+    trainingLevel: identical(trainingLevel, _keep)
+        ? this.trainingLevel
+        : trainingLevel as TrainingLevel?,
+    goalMoves: goalMoves ?? this.goalMoves,
+    focusAreas: focusAreas ?? this.focusAreas,
   );
 }
 

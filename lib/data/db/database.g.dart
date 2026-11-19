@@ -246,6 +246,51 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _trainingStyleMeta = const VerificationMeta('trainingStyle');
+  @override
+  late final GeneratedColumn<String> trainingStyle = GeneratedColumn<String>(
+    'training_style',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sideStylesMeta = const VerificationMeta('sideStyles');
+  @override
+  late final GeneratedColumn<String> sideStyles = GeneratedColumn<String>(
+    'side_styles',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trainingLevelMeta = const VerificationMeta('trainingLevel');
+  @override
+  late final GeneratedColumn<String> trainingLevel = GeneratedColumn<String>(
+    'training_level',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _goalMovesMeta = const VerificationMeta('goalMoves');
+  @override
+  late final GeneratedColumn<String> goalMoves = GeneratedColumn<String>(
+    'goal_moves',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _focusAreasMeta = const VerificationMeta('focusAreas');
+  @override
+  late final GeneratedColumn<String> focusAreas = GeneratedColumn<String>(
+    'focus_areas',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     userId,
@@ -272,6 +317,11 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     updatedAt,
     username,
     avatarPath,
+    trainingStyle,
+    sideStyles,
+    trainingLevel,
+    goalMoves,
+    focusAreas,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -423,6 +473,36 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
         avatarPath.isAcceptableOrUnknown(data['avatar_path']!, _avatarPathMeta),
       );
     }
+    if (data.containsKey('training_style')) {
+      context.handle(
+        _trainingStyleMeta,
+        trainingStyle.isAcceptableOrUnknown(data['training_style']!, _trainingStyleMeta),
+      );
+    }
+    if (data.containsKey('side_styles')) {
+      context.handle(
+        _sideStylesMeta,
+        sideStyles.isAcceptableOrUnknown(data['side_styles']!, _sideStylesMeta),
+      );
+    }
+    if (data.containsKey('training_level')) {
+      context.handle(
+        _trainingLevelMeta,
+        trainingLevel.isAcceptableOrUnknown(data['training_level']!, _trainingLevelMeta),
+      );
+    }
+    if (data.containsKey('goal_moves')) {
+      context.handle(
+        _goalMovesMeta,
+        goalMoves.isAcceptableOrUnknown(data['goal_moves']!, _goalMovesMeta),
+      );
+    }
+    if (data.containsKey('focus_areas')) {
+      context.handle(
+        _focusAreasMeta,
+        focusAreas.isAcceptableOrUnknown(data['focus_areas']!, _focusAreasMeta),
+      );
+    }
     return context;
   }
 
@@ -522,6 +602,26 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
         DriftSqlType.string,
         data['${effectivePrefix}avatar_path'],
       ),
+      trainingStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}training_style'],
+      ),
+      sideStyles: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}side_styles'],
+      ),
+      trainingLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}training_level'],
+      ),
+      goalMoves: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_moves'],
+      ),
+      focusAreas: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}focus_areas'],
+      ),
     );
   }
 
@@ -558,6 +658,13 @@ class Profile extends DataClass implements Insertable<Profile> {
   /// Sunucuda sütun düzeyinde yetkili (RPC ile yazılır); normal güncellemeyle gönderilmez.
   final String? username;
   final String? avatarPath;
+
+  /// Antrenman tarzı alanları. Liste sütunları JSON metin (`["a","b"]`); null = boş liste.
+  final String? trainingStyle;
+  final String? sideStyles;
+  final String? trainingLevel;
+  final String? goalMoves;
+  final String? focusAreas;
   const Profile({
     required this.userId,
     this.displayName,
@@ -583,6 +690,11 @@ class Profile extends DataClass implements Insertable<Profile> {
     required this.updatedAt,
     this.username,
     this.avatarPath,
+    this.trainingStyle,
+    this.sideStyles,
+    this.trainingLevel,
+    this.goalMoves,
+    this.focusAreas,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -633,6 +745,21 @@ class Profile extends DataClass implements Insertable<Profile> {
     if (!nullToAbsent || avatarPath != null) {
       map['avatar_path'] = Variable<String>(avatarPath);
     }
+    if (!nullToAbsent || trainingStyle != null) {
+      map['training_style'] = Variable<String>(trainingStyle);
+    }
+    if (!nullToAbsent || sideStyles != null) {
+      map['side_styles'] = Variable<String>(sideStyles);
+    }
+    if (!nullToAbsent || trainingLevel != null) {
+      map['training_level'] = Variable<String>(trainingLevel);
+    }
+    if (!nullToAbsent || goalMoves != null) {
+      map['goal_moves'] = Variable<String>(goalMoves);
+    }
+    if (!nullToAbsent || focusAreas != null) {
+      map['focus_areas'] = Variable<String>(focusAreas);
+    }
     return map;
   }
 
@@ -666,6 +793,15 @@ class Profile extends DataClass implements Insertable<Profile> {
       updatedAt: Value(updatedAt),
       username: username == null && nullToAbsent ? const Value.absent() : Value(username),
       avatarPath: avatarPath == null && nullToAbsent ? const Value.absent() : Value(avatarPath),
+      trainingStyle: trainingStyle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trainingStyle),
+      sideStyles: sideStyles == null && nullToAbsent ? const Value.absent() : Value(sideStyles),
+      trainingLevel: trainingLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trainingLevel),
+      goalMoves: goalMoves == null && nullToAbsent ? const Value.absent() : Value(goalMoves),
+      focusAreas: focusAreas == null && nullToAbsent ? const Value.absent() : Value(focusAreas),
     );
   }
 
@@ -696,6 +832,11 @@ class Profile extends DataClass implements Insertable<Profile> {
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
       username: serializer.fromJson<String?>(json['username']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      trainingStyle: serializer.fromJson<String?>(json['trainingStyle']),
+      sideStyles: serializer.fromJson<String?>(json['sideStyles']),
+      trainingLevel: serializer.fromJson<String?>(json['trainingLevel']),
+      goalMoves: serializer.fromJson<String?>(json['goalMoves']),
+      focusAreas: serializer.fromJson<String?>(json['focusAreas']),
     );
   }
   @override
@@ -726,6 +867,11 @@ class Profile extends DataClass implements Insertable<Profile> {
       'updatedAt': serializer.toJson<String>(updatedAt),
       'username': serializer.toJson<String?>(username),
       'avatarPath': serializer.toJson<String?>(avatarPath),
+      'trainingStyle': serializer.toJson<String?>(trainingStyle),
+      'sideStyles': serializer.toJson<String?>(sideStyles),
+      'trainingLevel': serializer.toJson<String?>(trainingLevel),
+      'goalMoves': serializer.toJson<String?>(goalMoves),
+      'focusAreas': serializer.toJson<String?>(focusAreas),
     };
   }
 
@@ -754,6 +900,11 @@ class Profile extends DataClass implements Insertable<Profile> {
     String? updatedAt,
     Value<String?> username = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
+    Value<String?> trainingStyle = const Value.absent(),
+    Value<String?> sideStyles = const Value.absent(),
+    Value<String?> trainingLevel = const Value.absent(),
+    Value<String?> goalMoves = const Value.absent(),
+    Value<String?> focusAreas = const Value.absent(),
   }) => Profile(
     userId: userId ?? this.userId,
     displayName: displayName.present ? displayName.value : this.displayName,
@@ -779,6 +930,11 @@ class Profile extends DataClass implements Insertable<Profile> {
     updatedAt: updatedAt ?? this.updatedAt,
     username: username.present ? username.value : this.username,
     avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+    trainingStyle: trainingStyle.present ? trainingStyle.value : this.trainingStyle,
+    sideStyles: sideStyles.present ? sideStyles.value : this.sideStyles,
+    trainingLevel: trainingLevel.present ? trainingLevel.value : this.trainingLevel,
+    goalMoves: goalMoves.present ? goalMoves.value : this.goalMoves,
+    focusAreas: focusAreas.present ? focusAreas.value : this.focusAreas,
   );
   Profile copyWithCompanion(ProfilesCompanion data) {
     return Profile(
@@ -812,6 +968,11 @@ class Profile extends DataClass implements Insertable<Profile> {
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       username: data.username.present ? data.username.value : this.username,
       avatarPath: data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
+      trainingStyle: data.trainingStyle.present ? data.trainingStyle.value : this.trainingStyle,
+      sideStyles: data.sideStyles.present ? data.sideStyles.value : this.sideStyles,
+      trainingLevel: data.trainingLevel.present ? data.trainingLevel.value : this.trainingLevel,
+      goalMoves: data.goalMoves.present ? data.goalMoves.value : this.goalMoves,
+      focusAreas: data.focusAreas.present ? data.focusAreas.value : this.focusAreas,
     );
   }
 
@@ -841,7 +1002,12 @@ class Profile extends DataClass implements Insertable<Profile> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('username: $username, ')
-          ..write('avatarPath: $avatarPath')
+          ..write('avatarPath: $avatarPath, ')
+          ..write('trainingStyle: $trainingStyle, ')
+          ..write('sideStyles: $sideStyles, ')
+          ..write('trainingLevel: $trainingLevel, ')
+          ..write('goalMoves: $goalMoves, ')
+          ..write('focusAreas: $focusAreas')
           ..write(')'))
         .toString();
   }
@@ -872,6 +1038,11 @@ class Profile extends DataClass implements Insertable<Profile> {
     updatedAt,
     username,
     avatarPath,
+    trainingStyle,
+    sideStyles,
+    trainingLevel,
+    goalMoves,
+    focusAreas,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -900,7 +1071,12 @@ class Profile extends DataClass implements Insertable<Profile> {
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.username == this.username &&
-          other.avatarPath == this.avatarPath);
+          other.avatarPath == this.avatarPath &&
+          other.trainingStyle == this.trainingStyle &&
+          other.sideStyles == this.sideStyles &&
+          other.trainingLevel == this.trainingLevel &&
+          other.goalMoves == this.goalMoves &&
+          other.focusAreas == this.focusAreas);
 }
 
 class ProfilesCompanion extends UpdateCompanion<Profile> {
@@ -928,6 +1104,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
   final Value<String> updatedAt;
   final Value<String?> username;
   final Value<String?> avatarPath;
+  final Value<String?> trainingStyle;
+  final Value<String?> sideStyles;
+  final Value<String?> trainingLevel;
+  final Value<String?> goalMoves;
+  final Value<String?> focusAreas;
   final Value<int> rowid;
   const ProfilesCompanion({
     this.userId = const Value.absent(),
@@ -954,6 +1135,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.updatedAt = const Value.absent(),
     this.username = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.trainingStyle = const Value.absent(),
+    this.sideStyles = const Value.absent(),
+    this.trainingLevel = const Value.absent(),
+    this.goalMoves = const Value.absent(),
+    this.focusAreas = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProfilesCompanion.insert({
@@ -981,6 +1167,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     required String updatedAt,
     this.username = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.trainingStyle = const Value.absent(),
+    this.sideStyles = const Value.absent(),
+    this.trainingLevel = const Value.absent(),
+    this.goalMoves = const Value.absent(),
+    this.focusAreas = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : userId = Value(userId),
        createdAt = Value(createdAt),
@@ -1010,6 +1201,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Expression<String>? updatedAt,
     Expression<String>? username,
     Expression<String>? avatarPath,
+    Expression<String>? trainingStyle,
+    Expression<String>? sideStyles,
+    Expression<String>? trainingLevel,
+    Expression<String>? goalMoves,
+    Expression<String>? focusAreas,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1037,6 +1233,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       if (updatedAt != null) 'updated_at': updatedAt,
       if (username != null) 'username': username,
       if (avatarPath != null) 'avatar_path': avatarPath,
+      if (trainingStyle != null) 'training_style': trainingStyle,
+      if (sideStyles != null) 'side_styles': sideStyles,
+      if (trainingLevel != null) 'training_level': trainingLevel,
+      if (goalMoves != null) 'goal_moves': goalMoves,
+      if (focusAreas != null) 'focus_areas': focusAreas,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1066,6 +1267,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Value<String>? updatedAt,
     Value<String?>? username,
     Value<String?>? avatarPath,
+    Value<String?>? trainingStyle,
+    Value<String?>? sideStyles,
+    Value<String?>? trainingLevel,
+    Value<String?>? goalMoves,
+    Value<String?>? focusAreas,
     Value<int>? rowid,
   }) {
     return ProfilesCompanion(
@@ -1093,6 +1299,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       updatedAt: updatedAt ?? this.updatedAt,
       username: username ?? this.username,
       avatarPath: avatarPath ?? this.avatarPath,
+      trainingStyle: trainingStyle ?? this.trainingStyle,
+      sideStyles: sideStyles ?? this.sideStyles,
+      trainingLevel: trainingLevel ?? this.trainingLevel,
+      goalMoves: goalMoves ?? this.goalMoves,
+      focusAreas: focusAreas ?? this.focusAreas,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1172,6 +1383,21 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     if (avatarPath.present) {
       map['avatar_path'] = Variable<String>(avatarPath.value);
     }
+    if (trainingStyle.present) {
+      map['training_style'] = Variable<String>(trainingStyle.value);
+    }
+    if (sideStyles.present) {
+      map['side_styles'] = Variable<String>(sideStyles.value);
+    }
+    if (trainingLevel.present) {
+      map['training_level'] = Variable<String>(trainingLevel.value);
+    }
+    if (goalMoves.present) {
+      map['goal_moves'] = Variable<String>(goalMoves.value);
+    }
+    if (focusAreas.present) {
+      map['focus_areas'] = Variable<String>(focusAreas.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1205,6 +1431,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
           ..write('updatedAt: $updatedAt, ')
           ..write('username: $username, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('trainingStyle: $trainingStyle, ')
+          ..write('sideStyles: $sideStyles, ')
+          ..write('trainingLevel: $trainingLevel, ')
+          ..write('goalMoves: $goalMoves, ')
+          ..write('focusAreas: $focusAreas, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9408,6 +9639,11 @@ typedef $$ProfilesTableCreateCompanionBuilder = ProfilesCompanion Function({
   required String updatedAt,
   Value<String?> username,
   Value<String?> avatarPath,
+  Value<String?> trainingStyle,
+  Value<String?> sideStyles,
+  Value<String?> trainingLevel,
+  Value<String?> goalMoves,
+  Value<String?> focusAreas,
   Value<int> rowid,
 });
 typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
@@ -9435,6 +9671,11 @@ typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
   Value<String> updatedAt,
   Value<String?> username,
   Value<String?> avatarPath,
+  Value<String?> trainingStyle,
+  Value<String?> sideStyles,
+  Value<String?> trainingLevel,
+  Value<String?> goalMoves,
+  Value<String?> focusAreas,
   Value<int> rowid,
 });
 
@@ -9523,6 +9764,21 @@ class $$ProfilesTableFilterComposer extends Composer<_$AppDatabase, $ProfilesTab
 
   ColumnFilters<String> get avatarPath =>
       $composableBuilder(column: $table.avatarPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get trainingStyle =>
+      $composableBuilder(column: $table.trainingStyle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sideStyles =>
+      $composableBuilder(column: $table.sideStyles, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get trainingLevel =>
+      $composableBuilder(column: $table.trainingLevel, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get goalMoves =>
+      $composableBuilder(column: $table.goalMoves, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get focusAreas =>
+      $composableBuilder(column: $table.focusAreas, builder: (column) => ColumnFilters(column));
 }
 
 class $$ProfilesTableOrderingComposer extends Composer<_$AppDatabase, $ProfilesTable> {
@@ -9614,6 +9870,25 @@ class $$ProfilesTableOrderingComposer extends Composer<_$AppDatabase, $ProfilesT
 
   ColumnOrderings<String> get avatarPath =>
       $composableBuilder(column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get trainingStyle => $composableBuilder(
+    column: $table.trainingStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sideStyles =>
+      $composableBuilder(column: $table.sideStyles, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get trainingLevel => $composableBuilder(
+    column: $table.trainingLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get goalMoves =>
+      $composableBuilder(column: $table.goalMoves, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get focusAreas =>
+      $composableBuilder(column: $table.focusAreas, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ProfilesTableAnnotationComposer extends Composer<_$AppDatabase, $ProfilesTable> {
@@ -9695,6 +9970,21 @@ class $$ProfilesTableAnnotationComposer extends Composer<_$AppDatabase, $Profile
 
   GeneratedColumn<String> get avatarPath =>
       $composableBuilder(column: $table.avatarPath, builder: (column) => column);
+
+  GeneratedColumn<String> get trainingStyle =>
+      $composableBuilder(column: $table.trainingStyle, builder: (column) => column);
+
+  GeneratedColumn<String> get sideStyles =>
+      $composableBuilder(column: $table.sideStyles, builder: (column) => column);
+
+  GeneratedColumn<String> get trainingLevel =>
+      $composableBuilder(column: $table.trainingLevel, builder: (column) => column);
+
+  GeneratedColumn<String> get goalMoves =>
+      $composableBuilder(column: $table.goalMoves, builder: (column) => column);
+
+  GeneratedColumn<String> get focusAreas =>
+      $composableBuilder(column: $table.focusAreas, builder: (column) => column);
 }
 
 class $$ProfilesTableTableManager
@@ -9747,6 +10037,11 @@ class $$ProfilesTableTableManager
                 Value<String> updatedAt = const Value.absent(),
                 Value<String?> username = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> trainingStyle = const Value.absent(),
+                Value<String?> sideStyles = const Value.absent(),
+                Value<String?> trainingLevel = const Value.absent(),
+                Value<String?> goalMoves = const Value.absent(),
+                Value<String?> focusAreas = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProfilesCompanion(
                 userId: userId,
@@ -9773,6 +10068,11 @@ class $$ProfilesTableTableManager
                 updatedAt: updatedAt,
                 username: username,
                 avatarPath: avatarPath,
+                trainingStyle: trainingStyle,
+                sideStyles: sideStyles,
+                trainingLevel: trainingLevel,
+                goalMoves: goalMoves,
+                focusAreas: focusAreas,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9801,6 +10101,11 @@ class $$ProfilesTableTableManager
                 required String updatedAt,
                 Value<String?> username = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> trainingStyle = const Value.absent(),
+                Value<String?> sideStyles = const Value.absent(),
+                Value<String?> trainingLevel = const Value.absent(),
+                Value<String?> goalMoves = const Value.absent(),
+                Value<String?> focusAreas = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProfilesCompanion.insert(
                 userId: userId,
@@ -9827,6 +10132,11 @@ class $$ProfilesTableTableManager
                 updatedAt: updatedAt,
                 username: username,
                 avatarPath: avatarPath,
+                trainingStyle: trainingStyle,
+                sideStyles: sideStyles,
+                trainingLevel: trainingLevel,
+                goalMoves: goalMoves,
+                focusAreas: focusAreas,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

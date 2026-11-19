@@ -133,4 +133,43 @@ void main() {
     final cols = await migrated.customSelect('PRAGMA table_info(profiles)').get();
     expect(cols.map((c) => c.read<String>('name')), contains('avatar_path'));
   });
+
+  test('v2 veritabanı v3e göçer, satır korunur ve yeni sütunlar null olur', () async {
+    final dir = Directory.systemTemp.createTempSync('mf_mig3');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/v2.sqlite');
+    final raw = sql.sqlite3.open(file.path);
+    raw.execute('''
+      CREATE TABLE profiles (
+        user_id TEXT NOT NULL, display_name TEXT NULL, height_cm REAL NULL, weight_kg REAL NULL,
+        birth_year INTEGER NULL, sex TEXT NULL, activity_level TEXT NULL, goal TEXT NULL,
+        calorie_target INTEGER NULL,
+        calorie_target_is_manual INTEGER NOT NULL DEFAULT 0 CHECK (calorie_target_is_manual IN (0, 1)),
+        units TEXT NOT NULL DEFAULT 'kg', week_starts_on TEXT NOT NULL DEFAULT 'monday',
+        timezone TEXT NOT NULL DEFAULT 'Europe/Istanbul', theme TEXT NOT NULL DEFAULT 'system',
+        accent TEXT NOT NULL DEFAULT 'indigo', theme_family TEXT NOT NULL DEFAULT 'canli',
+        accent_color TEXT NOT NULL DEFAULT 'yesil',
+        notification_settings TEXT NOT NULL DEFAULT '{"enabled": true, "task_lead_minutes": 10}',
+        onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK (onboarding_completed IN (0, 1)),
+        consented_at TEXT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        username TEXT NULL, avatar_path TEXT NULL,
+        PRIMARY KEY (user_id)
+      )''');
+    raw.execute(
+      'INSERT INTO profiles (user_id, display_name, created_at, updated_at) '
+      "VALUES ('u1', 'Ada', 'x', 'x')",
+    );
+    raw.execute('PRAGMA user_version = 2');
+    raw.close();
+
+    final migrated = AppDatabase.forTesting(NativeDatabase(file));
+    addTearDown(migrated.close);
+    final row = await migrated.select(migrated.profiles).getSingle();
+    expect(row.displayName, 'Ada');
+    expect(row.trainingStyle, isNull);
+    expect(row.sideStyles, isNull);
+    expect(row.trainingLevel, isNull);
+    expect(row.goalMoves, isNull);
+    expect(row.focusAreas, isNull);
+  });
 }

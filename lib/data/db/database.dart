@@ -47,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -56,6 +56,13 @@ class AppDatabase extends _$AppDatabase {
       if (from < 2) {
         await m.addColumn(profiles, profiles.username);
         await m.addColumn(profiles, profiles.avatarPath);
+      }
+      if (from < 3) {
+        await m.addColumn(profiles, profiles.trainingStyle);
+        await m.addColumn(profiles, profiles.sideStyles);
+        await m.addColumn(profiles, profiles.trainingLevel);
+        await m.addColumn(profiles, profiles.goalMoves);
+        await m.addColumn(profiles, profiles.focusAreas);
       }
     },
   );

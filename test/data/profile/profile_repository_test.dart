@@ -10,6 +10,7 @@ import 'package:missionfit/data/sync/sync_engine.dart';
 import '../sync/fake_remote_gateway.dart';
 
 import 'package:missionfit/domain/calories.dart';
+import 'package:missionfit/domain/training_style.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 
 class FailingOutbox extends OutboxRepository {
@@ -163,6 +164,76 @@ void main() {
       final row = p.toRow();
       expect(row['username'], 'alp');
       expect(row['avatar_path'], 'u1/1.jpg');
+    });
+  });
+
+  group('antrenman tarzı alanları', () {
+    test('fromServer bilinmeyen değerleri atar', () {
+      final p = Profile.fromServer({
+        'user_id': 'u1',
+        'training_style': 'calisthenics',
+        'side_styles': ['functional', 'yoga'],
+        'training_level': 'expert',
+        'goal_moves': ['muscle_up', 'bilinmeyen'],
+        'focus_areas': ['push', 'x'],
+      })!;
+      expect(p.trainingStyle, TrainingStyle.calisthenics);
+      expect(p.sideStyles, [TrainingStyle.functional]);
+      expect(p.trainingLevel, isNull);
+      expect(p.goalMoves, ['muscle_up']);
+      expect(p.focusAreas, [FocusArea.push]);
+    });
+
+    test('fromServer JSON metni de kabul eder, eksikse boş liste', () {
+      final p = Profile.fromServer({'user_id': 'u1', 'side_styles': '["strength"]'})!;
+      expect(p.sideStyles, [TrainingStyle.strength]);
+      expect(p.goalMoves, isEmpty);
+      expect(p.trainingStyle, isNull);
+    });
+
+    test('toPayload beş alanı içerir, username/avatar_path içermez', () {
+      final p = Profile.fromServer({
+        'user_id': 'u1',
+        'username': 'alp',
+        'training_style': 'strength',
+        'side_styles': ['general'],
+        'training_level': 'advanced',
+        'goal_moves': ['bench_up'],
+        'focus_areas': ['core', 'legs'],
+      })!;
+      final m = p.toPayload();
+      expect(m['training_style'], 'strength');
+      expect(m['side_styles'], ['general']);
+      expect(m['training_level'], 'advanced');
+      expect(m['goal_moves'], ['bench_up']);
+      expect(m['focus_areas'], ['core', 'legs']);
+      expect(m.containsKey('username'), isFalse);
+      expect(m.containsKey('avatar_path'), isFalse);
+    });
+
+    test('update outbox a tek kayıt yazar ve yerelde saklar', () async {
+      await seed(db);
+      final outbox = OutboxRepository(db);
+      final repo = ProfileRepository(db, outbox);
+      await repo.update(
+        'u1',
+        (p) => p.copyWith(
+          trainingStyle: TrainingStyle.functional,
+          sideStyles: [TrainingStyle.strength],
+          trainingLevel: TrainingLevel.beginner,
+          goalMoves: ['kb_swing'],
+          focusAreas: [FocusArea.mobility],
+        ),
+      );
+      final p = await repo.watch('u1').first;
+      expect(p!.trainingStyle, TrainingStyle.functional);
+      expect(p.sideStyles, [TrainingStyle.strength]);
+      expect(p.focusAreas, [FocusArea.mobility]);
+      final ops = await outbox.pending();
+      expect(ops, hasLength(1));
+      expect(ops.single.payload['training_style'], 'functional');
+      expect(ops.single.payload['side_styles'], ['strength']);
+      expect(ops.single.payload['goal_moves'], ['kb_swing']);
     });
   });
 }
