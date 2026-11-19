@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' show Tristate;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -220,6 +221,69 @@ void main() {
       final p = await ctx.profile;
       expect(p.calorieTarget, 1800);
       expect(p.calorieTargetIsManual, isTrue);
+    });
+  });
+
+  group('Antrenman tarzım', () {
+    ProfilesCompanion styled() => ProfilesCompanion.insert(
+      userId: 'u1',
+      createdAt: 'x',
+      updatedAt: 'x',
+      trainingStyle: const Value('calisthenics'),
+      trainingLevel: const Value('intermediate'),
+    );
+
+    testWidgets('satır alt yazısı ana tarz ve seviyeyi gösterir; boşsa Seçilmedi', (t) async {
+      await _pump(t, profile: styled());
+      expect(find.text('Antrenman tarzım'), findsOneWidget);
+      expect(find.text('Calisthenics · Orta'), findsOneWidget);
+    });
+
+    testWidgets('tarz yoksa alt yazı Seçilmedi', (t) async {
+      await _pump(t);
+      expect(find.text('Seçilmedi'), findsOneWidget);
+    });
+
+    testWidgets('ekran mevcut seçimlerle dolu açılır', (t) async {
+      final handle = t.ensureSemantics();
+      await _pump(t, initial: '/profil/tarz', profile: styled());
+      expect(
+        t.getSemantics(find.byKey(const Key('style-calisthenics'))).label,
+        contains('Ana tarz'),
+      );
+      expect(
+        t.getSemantics(find.byKey(const Key('level-intermediate'))).flagsCollection.isSelected,
+        Tristate.isTrue,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('değiştir ve kaydet: satır güncellenir, outbox a yazılır', (t) async {
+      final ctx = await _pump(t, profile: styled());
+      await t.tap(find.text('Antrenman tarzım'));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const Key('level-advanced')));
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.byKey(const Key('goal-first_pullup')));
+      await t.tap(find.byKey(const Key('goal-first_pullup')));
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+      await t.pumpAndSettle();
+      final p = await ctx.profile;
+      expect(p.trainingLevel, 'advanced');
+      expect(jsonDecode(p.goalMoves!) as List, contains('first_pullup'));
+      expect(find.text('Calisthenics · İleri'), findsOneWidget);
+      final ops = await ctx.db.select(ctx.db.outboxOps).get();
+      expect(ops, isNotEmpty);
+      expect(ops.last.payload, contains('advanced'));
+    });
+
+    testWidgets('tarz seçilmeden kaydet: Ana tarzını seç.', (t) async {
+      final ctx = await _pump(t, initial: '/profil/tarz');
+      await t.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+      await t.pumpAndSettle();
+      expect(find.text('Ana tarzını seç.'), findsOneWidget);
+      expect((await ctx.profile).trainingStyle, isNull);
     });
   });
 

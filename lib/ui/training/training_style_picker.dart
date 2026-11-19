@@ -14,6 +14,9 @@ const styleOptions = <(TrainingStyle, String, String, IconData)>[
   (TrainingStyle.general, 'Genel form', 'Sağlıklı kalmak', Icons.favorite_border),
 ];
 
+/// Tarzın Türkçe adı (kartlarla aynı kaynak).
+String styleTitle(TrainingStyle s) => styleOptions.firstWhere((o) => o.$1 == s).$2;
+
 const levelLabels = <TrainingLevel, String>{
   TrainingLevel.beginner: 'Yeni',
   TrainingLevel.intermediate: 'Orta',

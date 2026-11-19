@@ -17,6 +17,7 @@ import '../onboarding/consent_step.dart' show showKvkkDialog;
 import '../onboarding/goal_step.dart' show activityOptions, goalOptions;
 import '../onboarding/kvkk_text.dart';
 import '../theme/mf_theme.dart';
+import '../training/training_style_picker.dart' show levelLabels, styleTitle;
 import 'profile_header.dart';
 import 'profile_widgets.dart';
 
@@ -182,6 +183,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with WidgetsBindi
                     title: 'Fiziksel bilgiler',
                     subtitle: bodyParts.join(' · '),
                     onTap: () => context.push('/profil/vucut'),
+                  ),
+                  SettingsRow(
+                    icon: Icons.sports_gymnastics,
+                    title: 'Antrenman tarzım',
+                    subtitle: p.trainingStyle == null
+                        ? 'Seçilmedi'
+                        : [
+                            styleTitle(p.trainingStyle!),
+                            if (p.trainingLevel != null) levelLabels[p.trainingLevel]!,
+                          ].join(' · '),
+                    onTap: () => context.push('/profil/tarz'),
                   ),
                   SettingsRow(
                     icon: Icons.local_fire_department,

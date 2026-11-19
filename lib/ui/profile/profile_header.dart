@@ -26,6 +26,9 @@ class ProfileHeader extends ConsumerWidget {
         ? null
         : ref.read(profileIdentityRepositoryProvider).publicUrl(avatarPath);
     void edit() => context.push('/profil/duzenle');
+    // Ad/kullanıcı adı tamamsa eksik olan tarzdır; "Profilini tamamla" oraya götürür.
+    final identityDone = hasName && username != null;
+    final needsStyle = p != null && p.trainingStyle == null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,14 +78,14 @@ class ProfileHeader extends ConsumerWidget {
               ),
           ],
         ),
-        if (p != null && (!hasName || username == null))
+        if (p != null && (!identityDone || needsStyle))
           Padding(
             padding: const EdgeInsets.only(top: 16),
             child: MfButton(
               key: const Key('complete-profile'),
               label: 'Profilini tamamla',
               secondary: true,
-              onPressed: edit,
+              onPressed: identityDone ? () => context.push('/profil/tarz') : edit,
             ),
           ),
       ],

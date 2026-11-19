@@ -5,6 +5,7 @@ import 'delete_account_screen.dart';
 import 'edit_profile_screen.dart';
 import 'password_screen.dart';
 import 'theme_gallery_screen.dart';
+import 'training_style_screen.dart';
 import 'timezone_screen.dart';
 
 export 'profile_screen.dart' show ProfileScreen;
@@ -13,6 +14,7 @@ export 'profile_screen.dart' show ProfileScreen;
 final profileSubRoutes = <RouteBase>[
   GoRoute(path: 'duzenle', builder: (_, _) => const EditProfileScreen()),
   GoRoute(path: 'vucut', builder: (_, _) => const BodyGoalScreen()),
+  GoRoute(path: 'tarz', builder: (_, _) => const TrainingStyleScreen()),
   GoRoute(path: 'tema', builder: (_, _) => const ThemeGalleryScreen()),
   GoRoute(path: 'saat-dilimi', builder: (_, _) => const TimezoneScreen()),
   GoRoute(path: 'sifre', builder: (_, _) => const PasswordScreen()),

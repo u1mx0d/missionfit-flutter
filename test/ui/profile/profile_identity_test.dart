@@ -49,6 +49,7 @@ Future<_Ctx> _pump(
   String? displayName,
   String? username,
   String? avatarPath,
+  String? trainingStyle = 'calisthenics',
   GoogleProfile? google,
 }) async {
   tester.view.physicalSize = const Size(800, 2000);
@@ -66,6 +67,7 @@ Future<_Ctx> _pump(
           displayName: Value(displayName),
           username: Value(username),
           avatarPath: Value(avatarPath),
+          trainingStyle: Value(trainingStyle),
         ),
       );
   SharedPreferences.setMockInitialValues({});
@@ -90,7 +92,13 @@ Future<_Ctx> _pump(
       GoRoute(
         path: '/profil',
         builder: (_, _) => const Scaffold(body: ProfileHeader()),
-        routes: [GoRoute(path: 'duzenle', builder: (_, _) => const EditProfileScreen())],
+        routes: [
+          GoRoute(path: 'duzenle', builder: (_, _) => const EditProfileScreen()),
+          GoRoute(
+            path: 'tarz',
+            builder: (_, _) => const Scaffold(body: Text('TARZ')),
+          ),
+        ],
       ),
     ],
   );
@@ -127,6 +135,13 @@ void main() {
       await t.tap(find.text('Profilini tamamla'));
       await t.pumpAndSettle();
       expect(ctx.router.state.uri.path, '/profil/duzenle');
+    });
+
+    testWidgets('ad ve kullanıcı adı tamam, tarz boşsa Profilini tamamla tarza gider', (t) async {
+      final ctx = await _pump(t, displayName: 'Alperen', username: 'alp', trainingStyle: null);
+      await t.tap(find.text('Profilini tamamla'));
+      await t.pumpAndSettle();
+      expect(ctx.router.state.uri.path, '/profil/tarz');
     });
 
     testWidgets('ad yoksa başlık @kullaniciadi; ikisi de yoksa Profil', (t) async {
