@@ -311,3 +311,33 @@ class SyncCursors extends Table {
   @override
   Set<Column> get primaryKey => {targetTable};
 }
+
+// --- Yalnızca yerel tablolar (senkronlanmaz) ----------------------------------------------
+
+/// Aktif antrenmanın planı ve dinlenme bitişi; sunucuda karşılığı yoktur.
+class ActiveWorkoutPlans extends Table {
+  TextColumn get sessionId => text()();
+  TextColumn get userId => text()();
+
+  /// `PlannedExercise` listesi (JSON).
+  TextColumn get planJson => text()();
+  TextColumn get currentExerciseId => text().nullable()();
+
+  /// Dinlenmenin bittiği an (UTC ISO); dinlenme yoksa null.
+  TextColumn get restEndsAt => text().nullable()();
+  TextColumn get updatedAt => text()();
+
+  @override
+  Set<Column> get primaryKey => {sessionId};
+}
+
+/// Hareket başına son kullanılan dinlenme süresi (saniye).
+@DataClassName('RestMemoryRow')
+class RestMemory extends Table {
+  TextColumn get userId => text()();
+  TextColumn get exerciseId => text()();
+  IntColumn get seconds => integer()();
+
+  @override
+  Set<Column> get primaryKey => {userId, exerciseId};
+}

@@ -29,16 +29,16 @@ void main() {
     updatedAt: ts,
   );
 
-  test('bellekte açılır ve 18 tablo oluşur', () async {
-    // Sunucu şemasından 15 tablo + outboxOps + syncCursors = 17 uygulama tablosu.
-    // Brief "18" diyor; 18. tablo tanımlı değil (bkz. rapor), bu yüzden 17 beklenir.
+  test('bellekte açılır ve 19 tablo oluşur', () async {
+    // Sunucu şemasından 15 tablo + outboxOps + syncCursors + yalnızca yerel
+    // activeWorkoutPlans + restMemory = 19 uygulama tablosu.
     final rows = await db
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
         )
         .get();
-    expect(rows.length, 17);
-    expect(db.allTables.length, 17);
+    expect(rows.length, 19);
+    expect(db.allTables.length, 19);
   });
 
   test('foodEntries upsert aynı id ile ikinci kayıt oluşturmaz', () async {
@@ -87,7 +87,24 @@ void main() {
             ),
           );
 
+      await db
+          .into(db.restMemory)
+          .insert(RestMemoryCompanion.insert(userId: uid, exerciseId: 'e1', seconds: 90));
+      await db
+          .into(db.activeWorkoutPlans)
+          .insert(
+            ActiveWorkoutPlansCompanion.insert(
+              sessionId: 's1',
+              userId: uid,
+              planJson: '[]',
+              updatedAt: ts,
+            ),
+          );
+
       await db.clearAllUserData();
+
+      expect(await db.select(db.restMemory).get(), isEmpty);
+      expect(await db.select(db.activeWorkoutPlans).get(), isEmpty);
 
       expect(await db.select(db.foodEntries).get(), isEmpty);
       expect(await db.select(db.outboxOps).get(), isEmpty);
@@ -184,5 +201,53 @@ void main() {
     expect(row.trainingLevel, isNull);
     expect(row.goalMoves, isNull);
     expect(row.focusAreas, isNull);
+  });
+
+  test('v3 veritabanı v4e göçer, satırlar korunur ve iki yeni tablo oluşur', () async {
+    final dir = Directory.systemTemp.createTempSync('mf_mig4');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/v3.sqlite');
+    // v3 şemasını gerçek uygulamayla oluştur, sonra iki yeni tabloyu düşürüp sürümü 3'e indir.
+    final v3 = AppDatabase.forTesting(NativeDatabase(file));
+    await v3
+        .into(v3.workoutSessions)
+        .insert(
+          WorkoutSessionsCompanion.insert(
+            id: 's1',
+            userId: uid,
+            startedAt: ts,
+            localDate: '2026-11-18',
+            weekKey: '2026-11-16',
+            createdAt: ts,
+            updatedAt: ts,
+          ),
+        );
+    await v3.customStatement('DROP TABLE active_workout_plans');
+    await v3.customStatement('DROP TABLE rest_memory');
+    await v3.customStatement('PRAGMA user_version = 3');
+    await v3.close();
+
+    final migrated = AppDatabase.forTesting(NativeDatabase(file));
+    addTearDown(migrated.close);
+    final row = await migrated.select(migrated.workoutSessions).getSingle();
+    expect(row.id, 's1');
+    expect(row.status, 'active');
+    await migrated
+        .into(migrated.activeWorkoutPlans)
+        .insert(
+          ActiveWorkoutPlansCompanion.insert(
+            sessionId: 's1',
+            userId: uid,
+            planJson: '[]',
+            updatedAt: ts,
+          ),
+        );
+    await migrated
+        .into(migrated.restMemory)
+        .insert(RestMemoryCompanion.insert(userId: uid, exerciseId: 'e1', seconds: 90));
+    expect(await migrated.select(migrated.activeWorkoutPlans).get(), hasLength(1));
+    expect(await migrated.select(migrated.restMemory).get(), hasLength(1));
+    final version = await migrated.customSelect('PRAGMA user_version').getSingle();
+    expect(version.read<int>('user_version'), 4);
   });
 }

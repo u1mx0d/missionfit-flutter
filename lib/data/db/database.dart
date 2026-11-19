@@ -29,6 +29,8 @@ part 'database.g.dart';
     DefaultTasks,
     OutboxOps,
     SyncCursors,
+    ActiveWorkoutPlans,
+    RestMemory,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -47,7 +49,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -67,12 +69,18 @@ class AppDatabase extends _$AppDatabase {
         // sonraki çekme profili baştan alır.
         await (delete(syncCursors)..where((c) => c.targetTable.equals('profiles'))).go();
       }
+      if (from < 4) {
+        await m.createTable(activeWorkoutPlans);
+        await m.createTable(restMemory);
+      }
     },
   );
 
   /// Çıkış/hesap silme: kullanıcı verisi, outbox ve senkron imleçleri silinir; kataloglar kalır.
   Future<void> clearAllUserData() => transaction(() async {
     final List<TableInfo<Table, Object?>> all = [
+      activeWorkoutPlans,
+      restMemory,
       taskCompletions,
       tasks,
       favoriteFoods,
