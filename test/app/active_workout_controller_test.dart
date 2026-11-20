@@ -126,6 +126,43 @@ void main() {
     expect(again.plan, [bench, dips]);
   });
 
+  test('profili başka kimse dinlemese de start ve finish tamamlanır', () async {
+    final sp = await SharedPreferences.getInstance();
+    final lone = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        sharedPreferencesProvider.overrideWithValue(sp),
+        signedInUserIdProvider.overrideWithValue('u1'),
+        notificationServiceProvider.overrideWithValue(notifications),
+      ],
+    );
+    addTearDown(lone.dispose);
+    // Yalnızca controller dinlenir; profil sağlayıcısını kimse izlemez.
+    lone.listen(activeWorkoutControllerProvider, (_, _) {});
+    await lone.read(activeWorkoutControllerProvider.future);
+    final ctl = lone.read(activeWorkoutControllerProvider.notifier);
+    await ctl.start(const [bench]).timeout(const Duration(seconds: 2));
+    expect(lone.read(activeWorkoutControllerProvider).value, isNotNull);
+    await ctl.finish().timeout(const Duration(seconds: 2));
+    expect(lone.read(activeWorkoutControllerProvider).value, isNull);
+  });
+
+  test('süren antrenman varken start ikinci oturum açmaz, süreni taşıyan hata fırlatır', () async {
+    await c.read(activeWorkoutControllerProvider.future);
+    await ctl().start(const [bench]);
+    final first = state()!;
+    await expectLater(
+      ctl().start(const [dips]),
+      throwsA(
+        isA<WorkoutAlreadyActive>().having((e) => e.workout.sessionId, 'id', first.sessionId),
+      ),
+    );
+    final rows = await db.select(db.workoutSessions).get();
+    expect(rows, hasLength(1));
+    expect(rows.single.status, 'active');
+    expect(state()!.sessionId, first.sessionId);
+  });
+
   test('select ve addExercise planı kaydeder', () async {
     await c.read(activeWorkoutControllerProvider.future);
     await ctl().start(const [bench]);

@@ -17,7 +17,7 @@ import 'focus_widgets.dart' show FocusCta;
 import 'training_screen.dart' show regionTitle;
 
 /// Antrenmanı başlatır ve odak moduna geçer. Süren bir antrenman varsa ikincisi açılmaz:
-/// doğrudan ona devam edilir.
+/// doğrudan ona devam edilir (koruma `ActiveWorkoutController.start` içinde).
 Future<void> startOrResume(
   BuildContext context,
   WidgetRef ref,
@@ -29,15 +29,11 @@ Future<void> startOrResume(
   final messenger = ScaffoldMessenger.of(context);
   final ctl = ref.read(activeWorkoutControllerProvider.notifier);
   try {
-    final active = await ref.read(activeWorkoutControllerProvider.future);
-    if (active != null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Süren bir antrenman var, ona devam ediliyor.')),
-      );
-      router.go('/antrenman/odak');
-      return;
-    }
     await ctl.start(await planOf(), templateId: templateId, name: name);
+  } on WorkoutAlreadyActive {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Süren bir antrenman var, ona devam ediliyor.')),
+    );
   } catch (e) {
     debugPrint('Antrenman başlatılamadı: $e');
     messenger.showSnackBar(const SnackBar(content: Text('Antrenman başlatılamadı. Tekrar dene.')));

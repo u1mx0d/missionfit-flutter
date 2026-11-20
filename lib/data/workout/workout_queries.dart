@@ -18,7 +18,7 @@ class WeeklyBodyMap {
     required this.muscleSets,
     required this.levels,
     required this.lastWorked,
-    required this.regionsWorked,
+    required this.musclesWorked,
     required this.totalSets,
   });
 
@@ -26,14 +26,16 @@ class WeeklyBodyMap {
     muscleSets: {for (final m in bodyMapMuscles) m: 0.0},
     levels: {for (final m in bodyMapMuscles) m: 0},
     lastWorked: {for (final m in bodyMapMuscles) m: null},
-    regionsWorked: 0,
+    musclesWorked: 0,
     totalSets: 0,
   );
 
   final Map<String, double> muscleSets;
   final Map<String, int> levels;
   final Map<String, LocalDate?> lastWorked;
-  final int regionsWorked;
+
+  /// 14 maket bölgesinden (kas) bu hafta en az bir ağırlıklı seti olanların sayısı.
+  final int musclesWorked;
   final int totalSets;
 }
 
@@ -156,7 +158,7 @@ class WorkoutQueries {
       muscleSets: muscleSets,
       levels: {for (final e in muscleSets.entries) e.key: bodyMapLevel(e.value)},
       lastWorked: {for (final m in bodyMapMuscles) m: last[m]},
-      regionsWorked: cov.regions.values.where((r) => r.sets > 0).length,
+      musclesWorked: muscleSets.values.where((v) => v > 0).length,
       totalSets: cov.totalSets,
     );
   }
@@ -348,35 +350,40 @@ class WorkoutQueries {
     ];
   }
 
-  /// Kas grupları (`sortOrder` sırasıyla).
-  Future<List<MuscleGroupOption>> muscleGroups() async {
-    final rows = await (_db.select(
-      _db.muscleGroups,
-    )..orderBy([(g) => OrderingTerm.asc(g.sortOrder)])).get();
-    return [
-      for (final g in rows)
-        MuscleGroupOption(slug: g.slug, nameTr: g.nameTr, region: _region(g.bodyRegion)),
-    ];
-  }
+  /// Kas grupları (`sortOrder` sırasıyla); katalog senkronla gelince yeniden yayar.
+  Stream<List<MuscleGroupOption>> watchMuscleGroups() =>
+      (_db.select(_db.muscleGroups)..orderBy([(g) => OrderingTerm.asc(g.sortOrder)])).watch().map(
+        (rows) => [
+          for (final g in rows)
+            MuscleGroupOption(slug: g.slug, nameTr: g.nameTr, region: _region(g.bodyRegion)),
+        ],
+      );
 
-  /// Hazır programlar (`sortOrder` sırasıyla) ve hareket sayıları.
-  Future<List<TemplateOption>> templates() async {
-    final rows = await (_db.select(
-      _db.workoutTemplates,
-    )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).get();
-    final counts = <String, int>{};
-    for (final r in await _db.select(_db.workoutTemplateExercises).get()) {
-      counts[r.templateId] = (counts[r.templateId] ?? 0) + 1;
-    }
-    return [
-      for (final t in rows)
-        TemplateOption(
-          id: t.id,
-          nameTr: t.nameTr,
-          description: t.description,
-          level: t.level,
-          exerciseCount: counts[t.id] ?? 0,
-        ),
-    ];
+  /// Hazır programlar (`sortOrder` sırasıyla) ve hareket sayıları; şablon ya da hareket
+  /// satırları senkronla gelince yeniden yayar.
+  Stream<List<TemplateOption>> watchTemplates() {
+    final t = _db.workoutTemplates;
+    final te = _db.workoutTemplateExercises;
+    final q = _db.select(t).join([leftOuterJoin(te, te.templateId.equalsExp(t.id))])
+      ..orderBy([OrderingTerm.asc(t.sortOrder)]);
+    return q.watch().map((rows) {
+      final order = <String, WorkoutTemplate>{};
+      final counts = <String, int>{};
+      for (final r in rows) {
+        final tpl = r.readTable(t);
+        order.putIfAbsent(tpl.id, () => tpl);
+        if (r.readTableOrNull(te) != null) counts[tpl.id] = (counts[tpl.id] ?? 0) + 1;
+      }
+      return [
+        for (final tpl in order.values)
+          TemplateOption(
+            id: tpl.id,
+            nameTr: tpl.nameTr,
+            description: tpl.description,
+            level: tpl.level,
+            exerciseCount: counts[tpl.id] ?? 0,
+          ),
+      ];
+    });
   }
 }

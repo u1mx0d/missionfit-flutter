@@ -13,6 +13,16 @@ import 'workout_providers.dart';
 
 export 'workout_providers.dart' show DiscardedEmpty, Saved, WorkoutFinish;
 
+/// Süren bir antrenman varken yenisi başlatılmak istendi; süren antrenman taşınır.
+/// Arayüz bunu "Devam et"e çevirir; canlı oturum sessizce terk edilmez.
+class WorkoutAlreadyActive implements Exception {
+  const WorkoutAlreadyActive(this.workout);
+  final ActiveWorkout workout;
+
+  @override
+  String toString() => 'WorkoutAlreadyActive(${workout.sessionId})';
+}
+
 /// Süren antrenman: bellekteki durum + her değişiklik anında diske (yerel + outbox).
 /// İşlemler sırayla çalışır; hızlı iki dokunuş aynı set indeksini üretemez.
 class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
@@ -21,6 +31,9 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
   @override
   Future<ActiveWorkout?> build() async {
     final userId = ref.watch(signedInUserIdProvider);
+    // `start`/`finish` profilin geleceğini bekler; Riverpod 3'te dinleyicisi olmayan sağlayıcı
+    // duraklar ve gelecek hiç tamamlanmaz. Bu dinleme profili controller yaşadıkça canlı tutar.
+    ref.listen(profileProvider, (_, _) {});
     if (userId == null) return null;
     return ref.read(workoutRepositoryProvider).loadActive(userId);
   }
@@ -57,8 +70,11 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
     }
   }
 
+  /// Yeni antrenman açar. Süren antrenman varsa [WorkoutAlreadyActive] fırlatır.
   Future<void> start(List<PlannedExercise> plan, {String? templateId, String? name}) =>
       _serial(() async {
+        final current = await future;
+        if (current != null) throw WorkoutAlreadyActive(current);
         final profile = await ref.read(profileProvider.future);
         final w = await _repo.start(
           userId: _userId,

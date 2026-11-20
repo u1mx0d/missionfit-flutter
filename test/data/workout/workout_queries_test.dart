@@ -160,7 +160,7 @@ void main() {
       expect(m.lastWorked['chest'], '2026-11-16');
       expect(m.lastWorked['quads'], isNull);
       expect(m.totalSets, 4);
-      expect(m.regionsWorked, 3); // göğüs, omuz, kol
+      expect(m.musclesWorked, 3); // göğüs, triceps, omuz
     });
 
     test('önceki hafta ve abandoned sayılmaz, active sayılır', () async {
@@ -320,7 +320,7 @@ void main() {
 
   group('muscleGroups', () {
     test('sıra sırasıyla slug, Türkçe ad ve üst bölge', () async {
-      final g = await q.muscleGroups();
+      final g = await q.watchMuscleGroups().first;
       expect(g.map((e) => e.slug), bodyMapMuscles);
       expect(g.first.nameTr, 'chest');
       expect(g.first.region, BodyRegion.chest);
@@ -358,13 +358,33 @@ void main() {
               ),
             );
       }
-      final t = await q.templates();
+      final t = await q.watchTemplates().first;
       expect(t.map((e) => e.id), ['a', 'b']);
       expect(t[0].nameTr, 'Program a');
       expect(t[0].description, 'Açıklama a');
       expect(t[0].level, 'beginner');
       expect(t[0].exerciseCount, 2);
       expect(t[1].exerciseCount, 0);
+    });
+
+    test('şablon satırları sonradan gelince akış yeniden yayar', () async {
+      final seen = <int>[];
+      final sub = q.watchTemplates().listen((l) => seen.add(l.length));
+      await pumpEventQueue();
+      await db
+          .into(db.workoutTemplates)
+          .insert(
+            WorkoutTemplatesCompanion.insert(
+              id: 'x',
+              slug: 'x',
+              nameTr: 'X',
+              level: 'beginner',
+              createdAt: ts,
+            ),
+          );
+      await pumpEventQueue();
+      await sub.cancel();
+      expect(seen, [0, 1]);
     });
   });
 }

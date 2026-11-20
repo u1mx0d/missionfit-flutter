@@ -61,13 +61,13 @@ final lastSessionSetsProvider = FutureProvider.family<List<LoggedSet>, String>((
 });
 
 /// Kas grupları (slug → ad ve üst bölge); katalog senkronla gelir.
-final muscleGroupsProvider = FutureProvider<List<MuscleGroupOption>>(
-  (ref) => ref.watch(workoutQueriesProvider).muscleGroups(),
+final muscleGroupsProvider = StreamProvider<List<MuscleGroupOption>>(
+  (ref) => ref.watch(workoutQueriesProvider).watchMuscleGroups(),
 );
 
-/// Hazır programlar (`sortOrder` sırasıyla).
-final workoutTemplatesProvider = FutureProvider<List<TemplateOption>>(
-  (ref) => ref.watch(workoutQueriesProvider).templates(),
+/// Hazır programlar (`sortOrder` sırasıyla); katalog senkronla gelince yenilenir.
+final workoutTemplatesProvider = StreamProvider<List<TemplateOption>>(
+  (ref) => ref.watch(workoutQueriesProvider).watchTemplates(),
 );
 
 /// Varsayılan dinlenme (sn); hareketin hatırlanan süresi varsa sayaç onu kullanır.

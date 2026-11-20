@@ -67,8 +67,13 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
   Widget build(BuildContext context) {
     final t = mf(context);
     final active = ref.watch(activeWorkoutControllerProvider).value;
-    final week = ref.watch(weeklyBodyMapProvider).value ?? WeeklyBodyMap.empty;
-    final groups = ref.watch(muscleGroupsProvider).value ?? const <MuscleGroupOption>[];
+    final weekAsync = ref.watch(weeklyBodyMapProvider);
+    final groupsAsync = ref.watch(muscleGroupsProvider);
+    // Veri gelene kadar düzen aynı kalır, sayıların yerinde "–" durur (boş hafta gösterilmez).
+    final ready = weekAsync.hasValue && groupsAsync.hasValue;
+    final failed = !ready && (weekAsync.hasError || groupsAsync.hasError);
+    final week = weekAsync.value ?? WeeklyBodyMap.empty;
+    final groups = groupsAsync.value ?? const <MuscleGroupOption>[];
     final today = ref.watch(todayProvider.select((x) => x.date));
     final weekStartsOn =
         ref.watch(profileProvider.select((p) => p.value?.weekStartsOn)) ?? WeekStartsOn.monday;
@@ -87,7 +92,18 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
                   _ResumeCard(workout: active, onResume: () => context.go('/antrenman/odak')),
                   const SizedBox(height: 20),
                 ],
-                _WeekHeader(week: week, range: formatDayRange(window.start, window.end)),
+                _WeekHeader(
+                  week: ready ? week : null,
+                  range: formatDayRange(window.start, window.end),
+                ),
+                if (failed)
+                  _RetryLine(
+                    text: 'Haftalık veriler yüklenemedi.',
+                    onRetry: () {
+                      ref.invalidate(weeklyBodyMapProvider);
+                      ref.invalidate(muscleGroupsProvider);
+                    },
+                  ),
                 const SizedBox(height: 8),
                 SizedBox(
                   height: 360,
@@ -109,7 +125,7 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
                 ),
                 const SizedBox(height: 12),
                 _RegionList(
-                  week: week,
+                  week: ready ? week : null,
                   groups: groups,
                   open: _open,
                   today: today,
@@ -219,15 +235,19 @@ class _ResumeCard extends StatelessWidget {
 
 class _WeekHeader extends StatelessWidget {
   const _WeekHeader({required this.week, required this.range});
-  final WeeklyBodyMap week;
+
+  /// null: yükleniyor.
+  final WeeklyBodyMap? week;
   final String range;
 
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
     final mono = _isMono(t);
-    // 14 bölgeden kaçı bu hafta çalışıldı (maketteki bölgeler).
-    final worked = week.muscleSets.values.where((v) => v > 0).length;
+    // 14 bölgeden (maketteki kaslar) kaçı bu hafta çalışıldı.
+    final w = week;
+    final worked = w == null ? '–' : '${w.musclesWorked}';
+    final sets = w == null ? '–' : '${w.totalSets}';
     final total = bodyMapMuscles.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,7 +255,9 @@ class _WeekHeader extends StatelessWidget {
         _SectionTitle('Bu hafta', trailing: range),
         const SizedBox(height: 6),
         Semantics(
-          label: '$total bölgeden $worked bölge çalışıldı, ${week.totalSets} set',
+          label: w == null
+              ? 'Bu haftanın verileri yükleniyor'
+              : '$total bölgeden $worked bölge çalışıldı, $sets set',
           excludeSemantics: true,
           child: Wrap(
             crossAxisAlignment: WrapCrossAlignment.end,
@@ -254,7 +276,7 @@ class _WeekHeader extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  'bölge · ${week.totalSets} set',
+                  'bölge · $sets set',
                   style: TextStyle(color: t.textMuted, fontSize: 15),
                 ),
               ),
@@ -335,16 +357,20 @@ class _RegionList extends StatelessWidget {
     required this.today,
     required this.onToggle,
   });
-  final WeeklyBodyMap week;
+
+  /// null: yükleniyor (satırlar yerinde, sayılar "–", dokunulmaz).
+  final WeeklyBodyMap? week;
   final List<MuscleGroupOption> groups;
   final BodyRegion? open;
   final LocalDate today;
   final ValueChanged<BodyRegion> onToggle;
 
-  double _sets(BodyRegion r) => [
-    for (final g in groups)
-      if (g.region == r) week.muscleSets[g.slug] ?? 0,
-  ].fold(0, (a, b) => a + b);
+  double? _sets(BodyRegion r) => week == null
+      ? null
+      : [
+          for (final g in groups)
+            if (g.region == r) week!.muscleSets[g.slug] ?? 0,
+        ].fold<double>(0, (a, b) => a + b);
 
   @override
   Widget build(BuildContext context) {
@@ -354,11 +380,11 @@ class _RegionList extends StatelessWidget {
           key: Key('region-${r.name}'),
           title: regionTitle(r),
           sets: _sets(r),
-          open: open == r,
-          onTap: () => onToggle(r),
+          open: week != null && open == r,
+          onTap: week == null ? null : () => onToggle(r),
         ),
     ];
-    final detail = open == null
+    final detail = open == null || week == null
         ? null
         : _RegionDetail(
             key: Key('region-detail-${open!.name}'),
@@ -366,7 +392,7 @@ class _RegionList extends StatelessWidget {
               for (final g in groups)
                 if (g.region == open) g,
             ],
-            week: week,
+            week: week!,
             today: today,
           );
     return LayoutBuilder(
@@ -418,20 +444,24 @@ class _RegionRow extends StatelessWidget {
     super.key,
   });
   final String title;
-  final double sets;
+
+  /// null: yükleniyor.
+  final double? sets;
   final bool open;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
     final mono = _isMono(t);
-    final zero = sets <= 0;
+    final value = sets;
+    final zero = value == null || value <= 0;
     final color = zero ? t.textMuted : t.text;
+    final shown = value == null ? '–' : formatAmount(value);
     return Semantics(
       button: true,
       expanded: open,
-      label: '$title, ${formatAmount(sets)} set',
+      label: value == null ? '$title, yükleniyor' : '$title, $shown set',
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,
@@ -453,7 +483,7 @@ class _RegionRow extends StatelessWidget {
                 ),
               ),
               Text(
-                formatAmount(sets),
+                shown,
                 style: TextStyle(
                   color: color,
                   fontFamily: mono ? t.numberFont : null,
@@ -554,9 +584,14 @@ class _Recents extends ConsumerWidget {
             padding: EdgeInsets.all(12),
             child: Center(child: CircularProgressIndicator()),
           )
+        else if (list == null && recents.hasError)
+          _RetryLine(
+            text: 'Son antrenmanlar yüklenemedi.',
+            onRetry: () => ref.invalidate(recentWorkoutsProvider),
+          )
         else if (list == null || list.isEmpty)
           Text(
-            recents.hasError ? 'Son antrenmanlar yüklenemedi.' : 'Henüz tamamlanan antrenman yok.',
+            'Henüz tamamlanan antrenman yok.',
             style: TextStyle(color: t.textMuted, fontSize: 14),
           )
         else
@@ -647,6 +682,11 @@ class _Templates extends ConsumerWidget {
             padding: EdgeInsets.all(12),
             child: Center(child: CircularProgressIndicator()),
           )
+        else if (list == null && templates.hasError)
+          _RetryLine(
+            text: 'Hazır programlar yüklenemedi.',
+            onRetry: () => ref.invalidate(workoutTemplatesProvider),
+          )
         else if (list == null || list.isEmpty)
           Text(
             'Hazır programlar internete bağlanınca gelir.',
@@ -697,6 +737,33 @@ class _Templates extends ConsumerWidget {
                 ),
               ),
             ),
+      ],
+    );
+  }
+}
+
+/// Hata metni ve "Tekrar dene".
+class _RetryLine extends StatelessWidget {
+  const _RetryLine({required this.text, required this.onRetry});
+  final String text;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = mf(context);
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      children: [
+        Semantics(
+          liveRegion: true,
+          child: Text(text, style: TextStyle(color: t.textMuted, fontSize: 14)),
+        ),
+        TextButton(
+          onPressed: onRetry,
+          style: TextButton.styleFrom(minimumSize: const Size(48, 48), foregroundColor: t.text),
+          child: const Text('Tekrar dene'),
+        ),
       ],
     );
   }

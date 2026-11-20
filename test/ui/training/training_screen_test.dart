@@ -67,8 +67,7 @@ WeeklyBodyMap _week() {
       'triceps': '2026-11-19',
       'quads': '2026-11-20',
     },
-    // Üst bölge sayısı (göğüs, omuz, kol, bacak); başlık 14 kası sayar.
-    regionsWorked: 4,
+    musclesWorked: 4,
     totalSets: 13,
   );
 }
@@ -90,6 +89,11 @@ final _catalog = {
   'dips': _ex('dips', 'Dips', tracking: 'reps'),
   'squat': _ex('squat', 'Squat'),
 };
+
+final _groups = [
+  for (final m in bodyMapMuscles)
+    MuscleGroupOption(slug: m, nameTr: _muscleNames[m]!, region: _regionOf(m)),
+];
 
 final _templates = [
   for (var i = 1; i <= 10; i++)
@@ -175,14 +179,20 @@ class _FakeQueries extends Fake implements WorkoutQueries {
   final regionCalls = <BodyRegion>[];
   final searches = <String>[];
 
-  @override
-  Future<List<MuscleGroupOption>> muscleGroups() async => [
-    for (final m in bodyMapMuscles)
-      MuscleGroupOption(slug: m, nameTr: _muscleNames[m]!, region: _regionOf(m)),
-  ];
+  /// Verilirse katalog akışları bunlardan gelir (senkron/hata senaryoları).
+  Stream<List<MuscleGroupOption>> Function()? groupsStream;
+  Stream<List<TemplateOption>> Function()? templatesStream;
+  int templateSubscriptions = 0;
 
   @override
-  Future<List<TemplateOption>> templates() async => _templates;
+  Stream<List<MuscleGroupOption>> watchMuscleGroups() =>
+      groupsStream?.call() ?? Stream.value(_groups);
+
+  @override
+  Stream<List<TemplateOption>> watchTemplates() {
+    templateSubscriptions++;
+    return templatesStream?.call() ?? Stream.value(_templates);
+  }
 
   @override
   Future<List<PlannedExercise>> templatePlan(String templateId) async => _templatePlan;
@@ -262,12 +272,15 @@ Future<_Ctx> _pump(
   double textScale = 1,
   Brightness brightness = Brightness.dark,
   Size size = const Size(400, 900),
+  Stream<WeeklyBodyMap>? weekStream,
+  void Function(_FakeQueries q)? setupQueries,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final repo = _FakeRepo(active);
   final queries = _FakeQueries();
+  setupQueries?.call(queries);
   final router = GoRouter(
     initialLocation: initial,
     routes: [
@@ -290,7 +303,7 @@ Future<_Ctx> _pump(
       todayProvider.overrideWith(_FixedToday.new),
       workoutRepositoryProvider.overrideWithValue(repo),
       workoutQueriesProvider.overrideWithValue(queries),
-      weeklyBodyMapProvider.overrideWith((ref) => Stream.value(_week())),
+      weeklyBodyMapProvider.overrideWith((ref) => weekStream ?? Stream.value(_week())),
       recentWorkoutsProvider.overrideWith(
         (ref) => recentsFuture ?? Future.value(recents ?? _recents),
       ),
@@ -414,6 +427,64 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('Son çalışma: bugün'), findsOneWidget);
       expect(find.text('Ön bacak'), findsOneWidget);
+    });
+  });
+
+  group('Sekme: yükleme ve senkron', () {
+    testWidgets('hafta yüklenirken düzen yerinde, sayılar "–", boş hafta gösterilmez', (t) async {
+      await _pump(t, weekStream: const Stream.empty());
+      expect(find.text('–/14'), findsOneWidget);
+      expect(find.text('0/14'), findsNothing);
+      for (final r in BodyRegion.values) {
+        expect(find.descendant(of: _row(r.name), matching: find.text('–')), findsOneWidget);
+      }
+      // Yüklenirken satır açılmaz.
+      await t.tap(_row('chest'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('Son çalışma'), findsNothing);
+    });
+
+    testWidgets('katalog ilk açılıştan sonra gelince sekme yenilenir', (t) async {
+      // İlk açılışta katalog boş (senkron henüz bitmedi).
+      final groups = StreamController<List<MuscleGroupOption>>()..add(const []);
+      final templates = StreamController<List<TemplateOption>>()..add(const []);
+      addTearDown(groups.close);
+      addTearDown(templates.close);
+      await _pump(
+        t,
+        setupQueries: (q) {
+          q.groupsStream = () => groups.stream;
+          q.templatesStream = () => templates.stream;
+        },
+      );
+      expect(find.descendant(of: _row('chest'), matching: find.text('0')), findsOneWidget);
+      await _scrollTo(t, find.text('Hazır programlar internete bağlanınca gelir.'));
+
+      // Senkron katalog satırlarını yazar; akışlar yeniden yayar.
+      groups.add(_groups);
+      templates.add(_templates);
+      await t.pumpAndSettle();
+      expect(find.text('Hazır programlar internete bağlanınca gelir.'), findsNothing);
+      expect(find.text('Program 1', skipOffstage: false), findsOneWidget);
+      await t.scrollUntilVisible(_row('chest'), -200, scrollable: find.byType(Scrollable).first);
+      expect(find.descendant(of: _row('chest'), matching: find.text('6')), findsOneWidget);
+    });
+
+    testWidgets('şablonlar hata verirse "Tekrar dene" yeniden yükler', (t) async {
+      var fail = true;
+      final c = await _pump(
+        t,
+        setupQueries: (q) =>
+            q.templatesStream = () =>
+                fail ? Stream.error(StateError('disk')) : Stream.value(_templates),
+      );
+      await _scrollTo(t, find.text('Hazır programlar yüklenemedi.'));
+      expect(find.text('Hazır programlar internete bağlanınca gelir.'), findsNothing);
+      fail = false;
+      await t.tap(find.text('Tekrar dene'));
+      await t.pumpAndSettle();
+      expect(c.queries.templateSubscriptions, 2);
+      expect(find.text('Program 1', skipOffstage: false), findsOneWidget);
     });
   });
 
