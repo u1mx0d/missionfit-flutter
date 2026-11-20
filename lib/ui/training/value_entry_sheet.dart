@@ -57,6 +57,10 @@ class _ValueEntryState<T> extends State<_ValueEntry<T>> {
     ..selection = TextSelection(baseOffset: 0, extentOffset: widget.initial.length);
   String? _error;
 
+  /// Sayfa bir kez kapanır: çift "Tamam" ya da "Tamam" + klavyenin Bitti'si alttaki ekranı
+  /// kapatmasın.
+  bool _done = false;
+
   @override
   void dispose() {
     _ctrl.dispose();
@@ -64,12 +68,19 @@ class _ValueEntryState<T> extends State<_ValueEntry<T>> {
   }
 
   void _submit() {
+    if (_done || !mounted) return;
     final r = widget.parse(_ctrl.text);
     if (r.value == null) {
       setState(() => _error = r.error);
       return;
     }
-    Navigator.of(context).pop(r.value);
+    _close(r.value);
+  }
+
+  void _close([T? value]) {
+    if (_done || !mounted) return;
+    _done = true;
+    Navigator.of(context).pop(value);
   }
 
   @override
@@ -120,11 +131,7 @@ class _ValueEntryState<T> extends State<_ValueEntry<T>> {
               Row(
                 children: [
                   Expanded(
-                    child: MfButton(
-                      label: 'İptal',
-                      secondary: true,
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
+                    child: MfButton(label: 'İptal', secondary: true, onPressed: _close),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

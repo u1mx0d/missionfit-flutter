@@ -25,6 +25,21 @@ void main() {
     });
   });
 
+  test('parseWeightInput: binlik belirsizliği reddedilir; ",5" ve "5," kabul', () {
+    const msg = 'Ondalık için virgül kullan, ör. 102,5';
+    expect(parseWeightInput('1.000', WeightUnit.kg).error, msg);
+    expect(parseWeightInput('1,000', WeightUnit.kg).error, msg);
+    expect(parseWeightInput('2.500', WeightUnit.lb).error, msg);
+    expect(parseWeightInput(',5', WeightUnit.kg).value, 0.5);
+    expect(parseWeightInput('.5', WeightUnit.kg).value, 0.5);
+    expect(parseWeightInput('5,', WeightUnit.kg).value, 5);
+    expect(parseWeightInput('5.', WeightUnit.kg).value, 5);
+    expect(parseWeightInput('1000', WeightUnit.kg).value, 1000);
+    expect(parseWeightInput('1,00', WeightUnit.kg).value, 1);
+    expect(parseWeightInput(',', WeightUnit.kg).error, isNotNull);
+    expect(parseWeightInput('.', WeightUnit.kg).error, isNotNull);
+  });
+
   test('parseRepsInput: 1–500 tam sayı', () {
     expect(parseRepsInput('12').value, 12);
     expect(parseRepsInput('0').error, isNotNull);

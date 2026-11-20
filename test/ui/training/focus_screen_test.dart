@@ -433,6 +433,23 @@ void main() {
       expect(_value(t, 'weight'), '60');
     });
 
+    testWidgets('çift Tamam ve klavyeden Bitti sayfayı bir kez kapatır', (t) async {
+      await _pump(t);
+      await openEntry(t, 'weight');
+      await t.enterText(find.byKey(const Key('value-entry-field')), '70');
+      // Aynı karede iki "Tamam" (çift dokunuş) ve ardından klavyenin Bitti'si.
+      final ok = t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Tamam')).onPressed!;
+      ok();
+      ok();
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('value-entry-field')), findsNothing);
+      // Odak ekranı hâlâ açık.
+      expect(find.text('BENCH PRESS'), findsOneWidget);
+      expect(find.text('ANTRENMAN'), findsNothing);
+      expect(_value(t, 'weight'), '70');
+    });
+
     testWidgets('İptal değeri değiştirmez', (t) async {
       await _pump(t);
       await openEntry(t, 'weight');

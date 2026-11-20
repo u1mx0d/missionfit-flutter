@@ -10,8 +10,15 @@ typedef Parsed<T> = ({T? value, String? error});
 /// Ağırlık, KULLANICININ BİRİMİNDE. Virgül ya da nokta ondalık ayırıcı olabilir; sonuç
 /// 0,1'e yuvarlanır (adım ızgarasına oturtulmaz). 1000 kg karşılığını aşamaz.
 Parsed<double> parseWeightInput(String text, WeightUnit unit) {
-  final s = text.trim().replaceAll(',', '.');
-  final v = RegExp(r'^\d+(\.\d+)?$').hasMatch(s) ? double.tryParse(s) : null;
+  final raw = text.trim();
+  // "1.000" Türkçede bin de olabilir: ayırıcıdan sonra tam üç rakam belirsizdir, reddedilir.
+  if (RegExp(r'^\d+[.,]\d{3}$').hasMatch(raw)) {
+    return (value: null, error: 'Ondalık için virgül kullan, ör. 102,5');
+  }
+  final s = raw.replaceAll(',', '.');
+  // ",5" → 0,5; "5," → 5. En az bir rakam gerekir.
+  final ok = RegExp(r'^(\d+\.?\d*|\.\d+)$').hasMatch(s);
+  final v = ok ? double.tryParse(s.endsWith('.') ? s.substring(0, s.length - 1) : s) : null;
   final max = unit == WeightUnit.kg ? '1000 kg' : '${_fmt(fromKg(1000, unit))} lb';
   if (v == null) return (value: null, error: 'Bir sayı gir (ör. 62,5).');
   final r = (v * 10).round() / 10;
