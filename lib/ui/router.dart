@@ -19,6 +19,7 @@ import 'profile/profile_routes.dart';
 import 'shell/app_shell.dart';
 import 'today/today_screen.dart';
 import 'training/training_routes.dart';
+import 'training/training_screen.dart';
 
 const authRoutes = {'/hosgeldin', '/giris', '/kayit', '/dogrula', '/sifremi-unuttum'};
 const _splash = '/yukleniyor';
@@ -114,16 +115,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [GoRoute(path: '/bugun', builder: (_, _) => const TodayScreen())],
           ),
           StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/antrenman',
-                builder: (_, _) => const ComingSoonScreen(
-                  title: 'Antrenman',
-                  icon: Icons.fitness_center,
-                  message: 'Antrenman ekranı bir sonraki aşamada geliyor.',
-                ),
-              ),
-            ],
+            routes: [GoRoute(path: '/antrenman', builder: (_, _) => const TrainingScreen())],
           ),
           StatefulShellBranch(
             routes: [

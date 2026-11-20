@@ -317,4 +317,54 @@ void main() {
       expect(p[1].restSeconds, 120);
     });
   });
+
+  group('muscleGroups', () {
+    test('sıra sırasıyla slug, Türkçe ad ve üst bölge', () async {
+      final g = await q.muscleGroups();
+      expect(g.map((e) => e.slug), bodyMapMuscles);
+      expect(g.first.nameTr, 'chest');
+      expect(g.first.region, BodyRegion.chest);
+      expect(g.firstWhere((e) => e.slug == 'lats').region, BodyRegion.back);
+    });
+  });
+
+  group('templates', () {
+    test('sortOrder sırasıyla, hareket sayısıyla', () async {
+      for (final (id, order) in [('b', 2), ('a', 1)]) {
+        await db
+            .into(db.workoutTemplates)
+            .insert(
+              WorkoutTemplatesCompanion.insert(
+                id: id,
+                slug: id,
+                nameTr: 'Program $id',
+                description: Value('Açıklama $id'),
+                level: 'beginner',
+                sortOrder: Value(order),
+                createdAt: ts,
+              ),
+            );
+      }
+      for (final (i, ex) in ['bench', 'squat'].indexed) {
+        await db
+            .into(db.workoutTemplateExercises)
+            .insert(
+              WorkoutTemplateExercisesCompanion.insert(
+                id: 'te$i',
+                templateId: 'a',
+                exerciseId: ex,
+                orderIndex: i,
+                sets: 3,
+              ),
+            );
+      }
+      final t = await q.templates();
+      expect(t.map((e) => e.id), ['a', 'b']);
+      expect(t[0].nameTr, 'Program a');
+      expect(t[0].description, 'Açıklama a');
+      expect(t[0].level, 'beginner');
+      expect(t[0].exerciseCount, 2);
+      expect(t[1].exerciseCount, 0);
+    });
+  });
 }

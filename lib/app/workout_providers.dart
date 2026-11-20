@@ -10,7 +10,13 @@ import 'today_provider.dart';
 
 // UI katmanı veri katmanını içe aktaramaz; sorgu modelleri buradan açılır.
 export '../data/workout/workout_queries.dart'
-    show ExerciseOption, RecentWorkout, WeeklyBodyMap, WorkoutQueries;
+    show
+        ExerciseOption,
+        MuscleGroupOption,
+        RecentWorkout,
+        TemplateOption,
+        WeeklyBodyMap,
+        WorkoutQueries;
 export '../data/workout/workout_repository.dart'
     show DiscardedEmpty, Saved, WorkoutFinish, WorkoutRepository;
 
@@ -52,4 +58,45 @@ final lastSessionSetsProvider = FutureProvider.family<List<LoggedSet>, String>((
   final userId = ref.watch(signedInUserIdProvider);
   if (userId == null) return const [];
   return ref.watch(workoutQueriesProvider).lastSessionSets(userId, exerciseId);
+});
+
+/// Kas grupları (slug → ad ve üst bölge); katalog senkronla gelir.
+final muscleGroupsProvider = FutureProvider<List<MuscleGroupOption>>(
+  (ref) => ref.watch(workoutQueriesProvider).muscleGroups(),
+);
+
+/// Hazır programlar (`sortOrder` sırasıyla).
+final workoutTemplatesProvider = FutureProvider<List<TemplateOption>>(
+  (ref) => ref.watch(workoutQueriesProvider).templates(),
+);
+
+/// Varsayılan dinlenme (sn); hareketin hatırlanan süresi varsa sayaç onu kullanır.
+const defaultRestSeconds = 90;
+
+/// Hareket kimliklerinden plan (sıra korunur, katalogda olmayan atlanır). Hedef set: o
+/// hareketin son antrenmandaki set sayısı, yoksa 3.
+final planForExercisesProvider = Provider<Future<List<PlannedExercise>> Function(List<String>)>((
+  ref,
+) {
+  final q = ref.watch(workoutQueriesProvider);
+  final userId = ref.watch(signedInUserIdProvider);
+  return (ids) async {
+    final info = await q.exercisesByIds(ids);
+    final plan = <PlannedExercise>[];
+    for (final id in ids.toSet()) {
+      final e = info[id];
+      if (e == null) continue;
+      final last = userId == null ? const <LoggedSet>[] : await q.lastSessionSets(userId, id);
+      plan.add(
+        PlannedExercise(
+          exerciseId: id,
+          tracking: e.tracking,
+          equipment: e.equipment,
+          targetSets: targetSetsFor(lastSessionSetCount: last.isEmpty ? null : last.length),
+          restSeconds: defaultRestSeconds,
+        ),
+      );
+    }
+    return plan;
+  };
 });

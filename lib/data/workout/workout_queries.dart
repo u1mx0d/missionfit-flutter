@@ -73,6 +73,30 @@ class ExerciseOption {
   final BodyRegion? region;
 }
 
+/// Kas grubu: slug, Türkçe adı ve listedeki üst bölgesi.
+class MuscleGroupOption {
+  const MuscleGroupOption({required this.slug, required this.nameTr, required this.region});
+  final String slug;
+  final String nameTr;
+  final BodyRegion region;
+}
+
+/// Hazır program (şablon) özeti.
+class TemplateOption {
+  const TemplateOption({
+    required this.id,
+    required this.nameTr,
+    required this.description,
+    required this.level,
+    required this.exerciseCount,
+  });
+  final String id;
+  final String nameTr;
+  final String description;
+  final String level;
+  final int exerciseCount;
+}
+
 /// Antrenman sekmesinin okuma sorguları (yazım: `WorkoutRepository`).
 class WorkoutQueries {
   WorkoutQueries(this._db);
@@ -320,6 +344,38 @@ class WorkoutQueries {
           equipment: r.read(_db.exercises.equipment)!,
           targetSets: r.read(te.sets)!,
           restSeconds: r.read(te.restSeconds)!,
+        ),
+    ];
+  }
+
+  /// Kas grupları (`sortOrder` sırasıyla).
+  Future<List<MuscleGroupOption>> muscleGroups() async {
+    final rows = await (_db.select(
+      _db.muscleGroups,
+    )..orderBy([(g) => OrderingTerm.asc(g.sortOrder)])).get();
+    return [
+      for (final g in rows)
+        MuscleGroupOption(slug: g.slug, nameTr: g.nameTr, region: _region(g.bodyRegion)),
+    ];
+  }
+
+  /// Hazır programlar (`sortOrder` sırasıyla) ve hareket sayıları.
+  Future<List<TemplateOption>> templates() async {
+    final rows = await (_db.select(
+      _db.workoutTemplates,
+    )..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).get();
+    final counts = <String, int>{};
+    for (final r in await _db.select(_db.workoutTemplateExercises).get()) {
+      counts[r.templateId] = (counts[r.templateId] ?? 0) + 1;
+    }
+    return [
+      for (final t in rows)
+        TemplateOption(
+          id: t.id,
+          nameTr: t.nameTr,
+          description: t.description,
+          level: t.level,
+          exerciseCount: counts[t.id] ?? 0,
         ),
     ];
   }
