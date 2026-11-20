@@ -45,10 +45,33 @@ void main() {
   group('BodyMapFrames', () {
     test('gerçek varlıklardan 72 kare yükler', () {
       expect(frames.frameCount, 72);
-      expect(frames.shades, hasLength(72));
-      expect(frames.ids, hasLength(72));
-      expect(frames.shades.first.width, manifest['width']);
-      expect(frames.ids.first.height, manifest['height']);
+      // Işıklı görüntü ve kimlik kare başına tek dokuda paketlenir.
+      expect(frames.images, hasLength(72));
+      expect(frames.images.first.width, manifest['width']);
+      expect(frames.images.first.height, manifest['height']);
+    });
+
+    test('paketli doku: G = kimlik × 17, B = alfa (sis < 0,5 boş), A opak', () async {
+      final data = (await frames.images[0].toByteData())!;
+      int at(int x, int y, int c) => data.getUint8((y * 360 + x) * 4 + c);
+      expect(at(150, 180, 1), 17); // göğüs
+      expect(at(150, 180, 2), greaterThan(127));
+      expect(at(150, 180, 3), 255);
+      expect(at(1, 1, 1), 255); // boş
+      expect(at(1, 1, 2), 0);
+      // Kimliği boş olan her pikselde alfa sıfırlanmış olmalı ya da ≥ 0,5 kalmış olmalı.
+      for (var p = 0; p < 360 * 720; p++) {
+        final b = data.getUint8(p * 4 + 2);
+        expect(b == 0 || b >= 128, isTrue);
+      }
+    });
+
+    test('regionAt: tek piksellik kırıntı sonucu değiştirmez (5×5 çoğunluk)', () {
+      // Ön karede (111, 181) tek başına bir biceps (3) pikseli; çevresi çoğunlukla cilt.
+      const size = Size(360, 720);
+      expect(frames.regionAt(0, const Offset(111.5, 181.5), size), 0);
+      // (134, 601) baldır kırıntısı: cilt 12, boş 12 → cilt (boş yalnız en kalabalıksa kazanır).
+      expect(frames.regionAt(0, const Offset(134.5, 601.5), size), 0);
     });
 
     test('regionAt: ön karede göğüs → 1, köşe → −1', () {
@@ -66,6 +89,29 @@ void main() {
       final p = Offset(110 + r.dx * 180, r.dy * 360);
       expect(frames.regionAt(0, p, size), 1);
       expect(frames.regionAt(0, Offset(r.dx * 180, r.dy * 360), size), -1);
+    });
+  });
+
+  group('keepAliveAfterLastListener', () {
+    testWidgets('son dinleyiciden 30 sn sonra bırakır, arada dönülürse tutar', (tester) async {
+      var disposed = 0;
+      final p = Provider.autoDispose<int>((ref) {
+        keepAliveAfterLastListener(ref, bodyMapKeepAlive);
+        ref.onDispose(() => disposed++);
+        return 1;
+      });
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      var sub = c.listen(p, (_, _) {});
+      sub.close();
+      await tester.pump(const Duration(seconds: 20));
+      expect(disposed, 0);
+      sub = c.listen(p, (_, _) {}); // geri dönüldü
+      await tester.pump(const Duration(seconds: 60));
+      expect(disposed, 0);
+      sub.close();
+      await tester.pump(const Duration(seconds: 31));
+      expect(disposed, 1);
     });
   });
 
@@ -128,6 +174,58 @@ void main() {
       expect(state(tester).frame, 0);
     });
 
+    test('görünüm adları', () {
+      expect(bodyMapViewName(0), 'Ön');
+      expect(bodyMapViewName(90), 'Sol yan');
+      expect(bodyMapViewName(180), 'Arka');
+      expect(bodyMapViewName(270), 'Sağ yan');
+      expect(bodyMapViewName(-90), 'Sağ yan');
+      expect(bodyMapViewName(350), 'Ön');
+    });
+
+    testWidgets('dokunuş açılış turunu durdurur', (tester) async {
+      await tester.pumpWidget(wrap(const BodyMap(levels: {})));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tapAt(const Offset(2, 2));
+      await tester.pump();
+      final stopped = state(tester).angle;
+      expect(stopped, greaterThan(0));
+      await tester.pump(const Duration(seconds: 1));
+      expect(state(tester).angle, stopped);
+    });
+
+    testWidgets('gizli sekmede (TickerMode kapalı) kareler dinlenmez', (tester) async {
+      var builds = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            bodyMapFramesProvider.overrideWith((ref) {
+              builds++;
+              return frames;
+            }),
+            bodyMapProgramProvider.overrideWith((ref) async => null),
+          ],
+          child: MaterialApp(
+            theme: buildThemeData(
+              MfTheme.build(ThemeFamily.mono, Brightness.dark, AccentColor.kirmizi),
+            ),
+            home: const TickerMode(
+              enabled: false,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(width: 200, child: BodyMap(levels: {})),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(builds, 0);
+      expect(find.byType(RawImage), findsNothing);
+      expect(tester.getSize(find.byType(BodyMap)), const Size(200, 400));
+    });
+
     testWidgets('sürükleme açıyı değiştirir', (tester) async {
       await tester.pumpWidget(wrap(const BodyMap(levels: {}), reduce: true));
       await tester.pump();
@@ -161,14 +259,26 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('ekran okuyucu: artır/azalt 45° döndürür', (tester) async {
+    testWidgets('ekran okuyucu: değer görünüm adı, artır 90° döndürür', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(wrap(const BodyMap(levels: {}), reduce: true));
       await tester.pump();
       tester.semantics.increase(find.semantics.byLabel('Kas haritası'));
       await tester.pump();
-      expect(state(tester).angle, 45);
-      expect(state(tester).frame, 9);
+      expect(state(tester).angle, 90);
+      expect(state(tester).frame, 18);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Kas haritası')),
+        matchesSemantics(
+          label: 'Kas haritası',
+          value: 'Sol yan',
+          increasedValue: 'Arka',
+          decreasedValue: 'Ön',
+          isImage: true,
+          hasIncreaseAction: true,
+          hasDecreaseAction: true,
+        ),
+      );
       handle.dispose();
     });
 

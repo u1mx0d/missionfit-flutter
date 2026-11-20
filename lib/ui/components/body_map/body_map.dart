@@ -61,6 +61,9 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
 
   int _frameCount = 72;
 
+  /// Gösterilen karenin açısı (derece).
+  double get _shownAngle => _frame * 360 / _frameCount;
+
   void _onTick() {
     final f = frameForAngle(_ctrl.value, frames: _frameCount);
     // Yalnızca kare değişince yeniden çizilir.
@@ -96,7 +99,7 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
 
   void _rotateBy(double degrees) {
     _ctrl.stop();
-    final target = ((_ctrl.value + degrees) / 45).round() * 45.0;
+    final target = ((_ctrl.value + degrees) / 90).round() * 90.0;
     if (_reduceMotion) {
       _ctrl.value = target;
     } else {
@@ -105,6 +108,8 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
   }
 
   void _onTapUp(TapUpDetails d, BodyMapFrames frames, Size size) {
+    // Dokunuş da açılış turunu (ve savurmayı) durdurur.
+    _ctrl.stop();
     final cb = widget.onRegionTap;
     if (cb == null) return;
     final id = frames.regionAt(_frame, d.localPosition, size);
@@ -129,7 +134,10 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
-    final frames = ref.watch(bodyMapFramesProvider).value;
+    // Sekme kabuğu (IndexedStack) gizli dalı TickerMode(false) ile sarar; görünmezken
+    // sağlayıcı dinlenmez, böylece kareler bekleme süresinden sonra bırakılır.
+    final visible = TickerMode.valuesOf(context).enabled;
+    final frames = visible ? ref.watch(bodyMapFramesProvider).value : null;
     final program = ref.watch(bodyMapProgramProvider).value;
 
     Widget child;
@@ -148,7 +156,10 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
         builder: (context, c) {
           final size = c.biggest;
           final image = shader == null
-              ? RawImage(image: frames.shades[_frame], fit: BoxFit.contain)
+              ? ColorFiltered(
+                  colorFilter: _packedToGray,
+                  child: RawImage(image: frames.images[_frame], fit: BoxFit.contain),
+                )
               : CustomPaint(
                   size: size,
                   painter: _BodyMapPainter(
@@ -175,13 +186,30 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
       label: widget.semanticLabel,
       image: true,
       excludeSemantics: true,
-      // Sürüklemeye alternatif: ekran okuyucuda artır/azalt 45° döndürür.
-      onIncrease: frames == null ? null : () => _rotateBy(45),
-      onDecrease: frames == null ? null : () => _rotateBy(-45),
+      value: bodyMapViewName(_shownAngle),
+      increasedValue: frames == null ? null : bodyMapViewName(_shownAngle + 90),
+      decreasedValue: frames == null ? null : bodyMapViewName(_shownAngle - 90),
+      // Sürüklemeye alternatif: ekran okuyucuda artır/azalt 90° döndürür.
+      onIncrease: frames == null ? null : () => _rotateBy(90),
+      onDecrease: frames == null ? null : () => _rotateBy(-90),
       child: AspectRatio(aspectRatio: bodyMapAspectRatio, child: child),
     );
   }
 }
+
+/// Açının görünüm adı. Açı yukarıdan saat yönünde artar: 90° sol yan, 270° sağ yan.
+String bodyMapViewName(double degrees) {
+  final a = ((degrees % 360) + 360) % 360;
+  return const ['Ön', 'Sol yan', 'Arka', 'Sağ yan'][((a + 45) ~/ 90) % 4];
+}
+
+/// Shader yokken paketli dokudan gri görüntü: RGB = R (ışık), A = B (alfa).
+const _packedToGray = ColorFilter.matrix(<double>[
+  1, 0, 0, 0, 0, //
+  1, 0, 0, 0, 0, //
+  1, 0, 0, 0, 0, //
+  0, 0, 1, 0, 0, //
+]);
 
 /// 15 elemanlı seviye listesi (indeks = bölge kimliği, 0 = cilt).
 List<double> _levelList(Map<String, int> levels) {
@@ -195,20 +223,19 @@ List<double> _levelList(Map<String, int> levels) {
 
 @immutable
 class _BodyMapColors {
-  const _BodyMapColors(this.style, this.accent, this.base, this.off);
+  const _BodyMapColors(this.style, this.accent, this.base, this.off, this.offFloor);
 
   factory _BodyMapColors.of(MfTheme t) {
     final dark = t.brightness == Brightness.dark;
     return _BodyMapColors(
       t.bodyMapStyle,
       t.accent,
-      t.bodyMapStyle == BodyMapStyle.glow
-          // Heykel taşı: koyu zeminde açık gri, açık zeminde orta gri.
-          ? (dark ? const Color(0xFFA8AAA9) : const Color(0xFF8C908E))
-          // Nokta-matris: alfa = en düşük nokta opaklığı (açık zeminde daha yüksek).
-          : Color.fromRGBO(0, 0, 0, dark ? 0 : 0.45),
+      // Heykel taşı (Canlı): koyu zeminde açık gri, açık zeminde orta gri.
+      dark ? const Color(0xFFA8AAA9) : const Color(0xFF8C908E),
       // Boş noktalar: ışık değeri saydamlığa çevrilir, en parlak yer yazı rengine yaklaşır.
       t.text,
+      // Açık zeminde boş noktaların en düşük opaklığı; dolu noktalara uygulanmaz.
+      dark ? 0 : 0.45,
     );
   }
 
@@ -216,6 +243,7 @@ class _BodyMapColors {
   final Color accent;
   final Color base;
   final Color off;
+  final double offFloor;
 
   @override
   bool operator ==(Object other) =>
@@ -223,10 +251,11 @@ class _BodyMapColors {
       other.style == style &&
       other.accent == accent &&
       other.base == base &&
-      other.off == off;
+      other.off == off &&
+      other.offFloor == offFloor;
 
   @override
-  int get hashCode => Object.hash(style, accent, base, off);
+  int get hashCode => Object.hash(style, accent, base, off, offFloor);
 }
 
 class _BodyMapPainter extends CustomPainter {
@@ -264,10 +293,12 @@ class _BodyMapPainter extends CustomPainter {
     color(colors.off);
     f(colors.style == BodyMapStyle.dots ? 0 : 1);
     f(bodyMapDotPitch);
+    f(colors.offFloor);
     levels.forEach(f);
     shader
-      ..setImageSampler(0, frames.shades[frame], filterQuality: FilterQuality.low)
-      ..setImageSampler(1, frames.ids[frame], filterQuality: FilterQuality.none);
+      // Aynı paketli doku iki kez bağlanır: ışık bilineer, kimlik en yakın komşu.
+      ..setImageSampler(0, frames.images[frame], filterQuality: FilterQuality.low)
+      ..setImageSampler(1, frames.images[frame], filterQuality: FilterQuality.none);
 
     canvas
       ..save()
