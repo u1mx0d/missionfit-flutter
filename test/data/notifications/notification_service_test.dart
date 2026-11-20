@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:missionfit/data/notifications/notification_service.dart';
 import 'package:mocktail/mocktail.dart';
@@ -5,7 +7,10 @@ import 'package:mocktail/mocktail.dart';
 class _MockPlatform extends Mock implements NotificationsPlatform {}
 
 void main() {
-  setUpAll(() => registerFallbackValue(Importance.min));
+  setUpAll(() {
+    registerFallbackValue(Importance.min);
+    registerFallbackValue(Int64List(0));
+  });
   late _MockPlatform platform;
   late List<Duration> delays;
   late LocalNotificationService service;
@@ -19,6 +24,13 @@ void main() {
         id: any(named: 'id'),
         name: any(named: 'name'),
         importance: any(named: 'importance'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => platform.createAlertChannel(
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        vibrationPattern: any(named: 'vibrationPattern'),
       ),
     ).thenAnswer((_) async {});
     when(() => platform.cancelAll()).thenAnswer((_) async {});

@@ -37,3 +37,19 @@ String formatClock(num totalSeconds) {
   final ss = (s % 60).toString().padLeft(2, '0');
   return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
 }
+
+/// 62.5 → "62,5", 60.0 → "60" (Türkçe ondalık virgül).
+String formatAmount(double v) {
+  final r = (v * 10).round() / 10;
+  return r == r.truncateToDouble()
+      ? r.toInt().toString()
+      : r.toStringAsFixed(1).replaceAll('.', ',');
+}
+
+/// 45 → "0:45", 125 → "2:05", 3725 → "1:02:05".
+String formatSeconds(int s) {
+  final h = s ~/ 3600;
+  final m = (s % 3600) ~/ 60;
+  final ss = (s % 60).toString().padLeft(2, '0');
+  return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$ss' : '$m:$ss';
+}

@@ -2,31 +2,19 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 
+import '../../domain/format.dart';
 import '../../domain/units.dart';
 import '../../domain/weight_step.dart';
 import '../components/dot_grid.dart';
 import '../theme/mf_theme.dart';
 
+export '../../domain/format.dart' show formatAmount, formatSeconds;
+export '../../domain/weight_step.dart' show shownWeight;
+
 /// Odak modunun değer girişi: 60 dp –/+ düğmesi (basılı tutunca hızlanır), değer satırı,
 /// süre alanı (kronometreli) ve adım kuralları. Klavye hiç açılmaz.
 
 bool _mono(MfTheme t) => t.family == ThemeFamily.mono;
-
-/// 62.5 → "62,5", 60.0 → "60" (Türkçe ondalık virgül).
-String formatAmount(double v) {
-  final r = (v * 10).round() / 10;
-  return r == r.truncateToDouble()
-      ? r.toInt().toString()
-      : r.toStringAsFixed(1).replaceAll('.', ',');
-}
-
-/// 45 → "0:45", 125 → "2:05", 3725 → "1:02:05".
-String formatSeconds(int s) {
-  final h = s ~/ 3600;
-  final m = (s % 3600) ~/ 60;
-  final ss = (s % 60).toString().padLeft(2, '0');
-  return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$ss' : '$m:$ss';
-}
 
 /// 60 dp –/+ düğmesi. Dokununca bir adım; basılı tutunca hızlanarak tekrarlar.
 class RepeatButton extends StatefulWidget {
@@ -303,10 +291,6 @@ double? nextWeight(double? shown, int direction, String equipment, WeightUnit un
   final next = stepInUnit(shown, direction, equipment, unit);
   return toKg(next, unit) > 1000 ? shown : next;
 }
-
-/// Kayıtlı kg'yi kullanıcı biriminde gösterim değerine çevirir (bir kez, ızgaraya oturtarak).
-double shownWeight(double kg, String equipment, WeightUnit unit) =>
-    snapToStep(fromKg(kg, unit), equipment, unit);
 
 /// Tekrar –/+: boş alan "+" ile 1'den başlar; 1–500 arası.
 int? nextReps(int? reps, int direction) {

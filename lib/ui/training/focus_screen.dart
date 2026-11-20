@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/active_workout_controller.dart';
 import '../../app/profile_controller.dart';
+import '../../app/rest_timer.dart';
 import '../../app/screen_awake.dart';
 import '../../app/today_provider.dart' show clockProvider;
 import '../../app/workout_providers.dart';
@@ -21,9 +22,11 @@ import 'focus_sheets.dart';
 import 'focus_rail.dart';
 import 'focus_steppers.dart';
 import 'focus_widgets.dart';
+import 'rest_screen.dart';
 
 /// Odak modu: yalnızca o anki hareket ve set. Klavye açılmaz; değerler önceden dolu gelir,
-/// –/+ ile değişir, set tek dokunuşla tamamlanır. Ekran açık kalır.
+/// –/+ ile değişir, set tek dokunuşla tamamlanır. Ekran açık kalır. Dinlenme sürerken
+/// dinlenme ekranı bunun üstünde tam ekran durur.
 class FocusScreen extends ConsumerStatefulWidget {
   const FocusScreen({super.key});
 
@@ -31,10 +34,11 @@ class FocusScreen extends ConsumerStatefulWidget {
   ConsumerState<FocusScreen> createState() => _FocusScreenState();
 }
 
-class _FocusScreenState extends ConsumerState<FocusScreen> {
+class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingObserver {
   late final ScreenAwake _awake;
   bool _busy = false;
   bool _askingFinish = false;
+  bool _restored = false;
 
   ActiveWorkoutController get _ctl => ref.read(activeWorkoutControllerProvider.notifier);
 
@@ -43,12 +47,46 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     super.initState();
     _awake = ref.read(screenAwakeProvider);
     unawaited(_awake.enable());
+    WidgetsBinding.instance.addObserver(this);
+    // Uygulama dinlenme sırasında kapatıldıysa sayaç diskteki bitişten sürer.
+    ref.listenManual(activeWorkoutControllerProvider, (_, next) {
+      final w = next.value;
+      if (w == null || _restored) return;
+      _restored = true;
+      unawaited(ref.read(restTimerProvider.notifier).restoreFrom(w));
+    }, fireImmediately: true);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_awake.disable());
     super.dispose();
+  }
+
+  /// Öne gelince diskteki bitiş yeniden okunur (bildirimden yapılan değişiklikler).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final w = ref.read(activeWorkoutControllerProvider).value;
+    if (w != null) unawaited(ref.read(restTimerProvider.notifier).restoreFrom(w));
+  }
+
+  /// "Son seti düzenle": dinlenme durur, en son tamamlanan set düzenleyicide açılır.
+  Future<void> _editLast() async {
+    await ref.read(restTimerProvider.notifier).skip();
+    final w = ref.read(activeWorkoutControllerProvider).value;
+    if (w == null || !mounted) return;
+    LoggedSet? last;
+    for (final s in w.sets) {
+      if (last == null || s.completedAt.isAfter(last.completedAt)) last = s;
+    }
+    if (last == null) return;
+    final p = w.plan.where((x) => x.exerciseId == last!.exerciseId).firstOrNull;
+    if (p == null) return;
+    final done = w.sets.where((s) => s.exerciseId == p.exerciseId).toList()
+      ..sort((a, b) => a.setIndex.compareTo(b.setIndex));
+    await _edit(w, p, last, done.indexOf(last) + 1);
   }
 
   WeightUnit get _unit => ref.read(profileProvider).value?.units ?? WeightUnit.kg;
@@ -230,26 +268,42 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(activeWorkoutControllerProvider);
     final w = state.value;
+    final resting = w != null && ref.watch(restTimerProvider) != null;
+    final reduced = MediaQuery.disableAnimationsOf(context);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) unawaited(_confirmFinish());
       },
       child: Scaffold(
-        body: MfBackground(
-          child: SafeArea(
-            child: w != null
-                // Tablette ve yatayda içerik okunur genişlikte ortalanır.
-                ? Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: _body(w),
-                    ),
-                  )
-                : state.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : NoActiveWorkout(onBack: () => context.go('/antrenman')),
-          ),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Dinlenirken odak modu durumunu korur ama görünmez, dokunulmaz, okunmaz.
+            Visibility(
+              visible: !resting,
+              maintainState: true,
+              child: MfBackground(
+                child: SafeArea(
+                  child: w != null
+                      // Tablette ve yatayda içerik okunur genişlikte ortalanır.
+                      ? Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 520),
+                            child: _body(w),
+                          ),
+                        )
+                      : state.isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : NoActiveWorkout(onBack: () => context.go('/antrenman')),
+                ),
+              ),
+            ),
+            AnimatedSwitcher(
+              duration: reduced ? Duration.zero : const Duration(milliseconds: 200),
+              child: resting ? RestScreen(onEditLast: _editLast) : const SizedBox.shrink(),
+            ),
+          ],
         ),
       ),
     );

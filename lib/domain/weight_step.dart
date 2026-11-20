@@ -47,3 +47,7 @@ double stepInUnit(double value, int direction, String equipment, WeightUnit unit
   final next = snapToStep(value + direction * weightStep(equipment, unit), equipment, unit);
   return next < 0 ? 0 : next;
 }
+
+/// Kayıtlı kg'yi kullanıcı biriminde gösterim değerine çevirir (bir kez, ızgaraya oturtarak).
+double shownWeight(double kg, String equipment, WeightUnit unit) =>
+    snapToStep(fromKg(kg, unit), equipment, unit);

@@ -150,6 +150,9 @@ class _FakeRepo extends Fake implements WorkoutRepository {
   }
 
   @override
+  Future<DateTime?> restEndFor(String sessionId) async => null;
+
+  @override
   Future<WorkoutFinish> finish(ActiveWorkout w, {required double? bodyWeightKg}) async {
     calls.add('finish');
     active = null;

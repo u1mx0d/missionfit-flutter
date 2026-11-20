@@ -71,6 +71,16 @@ class _FakeNotifications implements NotificationService {
   Future<void> showTest() async => tests++;
   @override
   Future<void> cancelAll() async {}
+  @override
+  Future<void> showRest({
+    required DateTime endsAt,
+    required String nextLabel,
+    String? payload,
+  }) async {}
+  @override
+  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel}) async {}
+  @override
+  Future<void> cancelRest() async {}
 }
 
 class _FakeExport extends Fake implements ExportService {

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/active_workout.dart';
 import '../domain/week.dart';
 import 'profile_controller.dart';
+import 'rest_timer.dart';
 import 'today_provider.dart' show defaultTimeZone;
 import 'workout_providers.dart';
 
@@ -178,8 +181,12 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
 final activeWorkoutControllerProvider =
     AsyncNotifierProvider<ActiveWorkoutController, ActiveWorkout?>(ActiveWorkoutController.new);
 
-/// Set tamamlanınca odak modu çağırır. Varsayılan boş; dinlenme (Görev 9) bunu değiştirir.
-final onSetCompletedProvider = Provider<void Function(String exerciseId)>((ref) => (_) {});
+/// Set tamamlanınca odak modu çağırır: dinlenme o hareketin süresiyle başlar
+/// (dinlenme ekranı odak modunun üstünde açılır).
+final onSetCompletedProvider = Provider<void Function(String exerciseId)>(
+  (ref) =>
+      (exerciseId) => unawaited(ref.read(restTimerProvider.notifier).startFor(exerciseId)),
+);
 
 /// Odak modunda düzenlenen, henüz tamamlanmamış değerler. Ağırlık KULLANICININ BİRİMİNDE
 /// (kg ya da lb) ve adım ızgarasında tutulur; kg'ye yalnızca set yazılırken çevrilir.

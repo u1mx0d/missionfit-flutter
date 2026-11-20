@@ -8,6 +8,7 @@ import 'app/known_accounts.dart';
 import 'app/profile_controller.dart';
 import 'app/providers.dart';
 import 'data/notifications/notification_service.dart';
+import 'data/notifications/rest_actions.dart';
 import 'app/session_controller.dart';
 import 'data/auth/secure_local_storage.dart';
 import 'app/theme_controller.dart';
@@ -31,7 +32,10 @@ Future<void> main() async {
   );
   // Yerel diskten okunur; ağ beklenmez, ilk karede kayıtlı tema kullanılır.
   final prefs = await SharedPreferences.getInstance();
-  final notifications = LocalNotificationService(PluginNotificationsPlatform());
+  // "+15 sn"/"Atla" uygulama kapalıyken de çalışsın: eklenti arka plan isolate'ında bunu çağırır.
+  final notifications = LocalNotificationService(
+    PluginNotificationsPlatform(onBackgroundResponse: restNotificationBackgroundHandler),
+  );
   try {
     await notifications.init();
   } catch (e, st) {
