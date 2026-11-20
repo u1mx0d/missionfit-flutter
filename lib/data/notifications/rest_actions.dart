@@ -92,11 +92,12 @@ class RestActionMessage {
   final RestAction action;
   final RestPayload payload;
 
-  /// `SendPort` yalnızca basit değerler taşır.
-  List<String> toPort() => [action.name, payload.encode()];
+  /// `SendPort` yalnızca basit değerler taşır. [reply] verilirse alan taraf alındığını
+  /// (`true`) oraya bildirir.
+  List<Object> toPort([SendPort? reply]) => [action.name, payload.encode(), ?reply];
 
   static RestActionMessage? fromPort(Object? msg) {
-    if (msg is! List || msg.length != 2) return null;
+    if (msg is! List || msg.length < 2) return null;
     final a = RestAction.values.where((x) => x.name == msg[0]).firstOrNull;
     final p = RestPayload.tryDecode(msg[1] is String ? msg[1] as String : null);
     return a == null || p == null ? null : RestActionMessage(a, p);
@@ -105,6 +106,11 @@ class RestActionMessage {
 
 /// Ana isolate'ın eylemleri dinlediği kapının adı ([IsolateNameServer]).
 const restActionPortName = 'missionfit.rest_actions';
+
+/// Ana isolate gelen mesajın alındığını bildirir (mesajda yanıt kapısı varsa).
+void ackRestMessage(Object? msg) {
+  if (msg is List && msg.length >= 3 && msg[2] is SendPort) (msg[2] as SendPort).send(true);
+}
 
 const _plus = Duration(seconds: 15);
 
@@ -117,10 +123,20 @@ Future<void> applyRestAction(
   required NotificationService notifications,
   required DateTime now,
 }) async {
-  final endsAt = await repo.restEndFor(p.sessionId);
-  if (action == RestAction.skip || endsAt == null || !endsAt.isAfter(now)) {
-    if (endsAt != null) await repo.setRestEnd(p.sessionId, null);
+  if (action == RestAction.skip) {
+    // Önce bildirim ve alarm: disk hata verse de dinlenme kesin kapanır.
     await notifications.cancelRest();
+    try {
+      await repo.setRestEnd(p.sessionId, null);
+    } catch (e, st) {
+      debugPrint('Dinlenme bitişi silinemedi: $e\n$st');
+    }
+    return;
+  }
+  final endsAt = await repo.restEndFor(p.sessionId);
+  if (endsAt == null || !endsAt.isAfter(now)) {
+    await notifications.cancelRest();
+    if (endsAt != null) await repo.setRestEnd(p.sessionId, null);
     return;
   }
   final next = endsAt.add(_plus);
@@ -132,10 +148,14 @@ Future<void> applyRestAction(
 }
 
 /// Bildirim yanıtını yönlendirir: ana isolate açıksa ona iletir, değilse burada uygular.
+/// Kayıtlı kapı ölmüş bir isolate'a ait olabilir (`send` sessizce kaybolur); bu yüzden
+/// [ackTimeout] içinde alındı bilgisi gelmezse kapı kaydı silinir ve eylem burada uygulanır.
 Future<void> handleRestResponse(
   NotificationResponse r, {
   required SendPort? Function() mainPort,
   required FutureOr<void> Function(RestActionMessage) applyInBackground,
+  void Function()? onStalePort,
+  Duration ackTimeout = const Duration(seconds: 1),
 }) async {
   final action = RestAction.fromId(r.actionId);
   final payload = RestPayload.tryDecode(r.payload);
@@ -143,8 +163,15 @@ Future<void> handleRestResponse(
   final msg = RestActionMessage(action, payload);
   final port = mainPort();
   if (port != null) {
-    port.send(msg.toPort());
-    return;
+    final reply = ReceivePort();
+    try {
+      port.send(msg.toPort(reply.sendPort));
+      final acked = await reply.first.timeout(ackTimeout, onTimeout: () => false);
+      if (acked == true) return;
+    } finally {
+      reply.close();
+    }
+    onStalePort?.call();
   }
   await applyInBackground(msg);
 }
@@ -158,6 +185,7 @@ Future<void> restNotificationBackgroundHandler(NotificationResponse r) async {
     await handleRestResponse(
       r,
       mainPort: () => IsolateNameServer.lookupPortByName(restActionPortName),
+      onStalePort: () => IsolateNameServer.removePortNameMapping(restActionPortName),
       applyInBackground: (m) async {
         final db = AppDatabase.open();
         try {

@@ -57,11 +57,19 @@ class _FlakyRepo extends WorkoutRepository {
   }
 }
 
+/// Yalnızca dinlenme iptallerini sayar.
+class _RestCancels extends Fake implements NotificationService {
+  int cancels = 0;
+  @override
+  Future<void> cancelRest() async => cancels++;
+}
+
 void main() {
   setUpAll(tzdata.initializeTimeZones);
 
   late AppDatabase db;
   late ProviderContainer c;
+  late _RestCancels notifications;
 
   setUp(() async {
     db = AppDatabase.forTesting(NativeDatabase.memory());
@@ -78,6 +86,7 @@ void main() {
         );
     await _seedExercise(db, 'bench');
     await _seedExercise(db, 'dips');
+    notifications = _RestCancels();
     SharedPreferences.setMockInitialValues({});
     final sp = await SharedPreferences.getInstance();
     c = ProviderContainer(
@@ -85,6 +94,7 @@ void main() {
         databaseProvider.overrideWithValue(db),
         sharedPreferencesProvider.overrideWithValue(sp),
         signedInUserIdProvider.overrideWithValue('u1'),
+        notificationServiceProvider.overrideWithValue(notifications),
       ],
     );
     c.listen(profileProvider, (_, _) {});
@@ -259,5 +269,17 @@ void main() {
     expect(state(), isNull);
     expect(c.read(focusDraftsProvider), isEmpty);
     expect(await db.select(db.workoutSessions).get(), isEmpty);
+  });
+
+  test('dinlenme sayacı hiç kurulmamışken bitir/sil dinlenme alarmını yine kaldırır', () async {
+    await c.read(activeWorkoutControllerProvider.future);
+    await ctl().start(const [bench]);
+    await ctl().completeSet(const SetValues(weightKg: 60, reps: 8));
+    await ctl().finish();
+    expect(notifications.cancels, 1);
+
+    await ctl().start(const [bench]);
+    await ctl().discard();
+    expect(notifications.cancels, 2);
   });
 }

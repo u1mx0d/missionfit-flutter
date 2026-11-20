@@ -104,3 +104,9 @@ Final: Ruling: m1 (ilk çekme biter bitmez profil akışı henüz yayılmadan 1 
 Final: Ruling: m2 (Google sub ön kontrolü karar veremezse yanlış hesapla oturum açılır, ardından eşleşmezlik yakalanıp çıkış yapılır; orijinal kullanıcının gönderilmemiş yerel değişiklikleri silinebilir) park edildi — nadir köşe durumu, hesap silinmiyor — maliyet: nadir yerel veri kaybı.
 Final: minor (deferred): şifre sıfırlamada kod doğrulandıktan sonra uygulama kapanırsa eski şifreyle oturum açık kalır; onboarding onam adımındaki çıkış hatası _saveError'u paylaşıyor
 ```
+
+## Aşama 2a notu: tam zamanlı alarm izni
+
+- Dinlenme bitişi tam zamanlı alarmla (`zonedSchedule`, `exactAllowWhileIdle`) gelir. API 33+ için `USE_EXACT_ALARM` kullanılıyor; kullanıcıya sorulmadan verilir. `SCHEDULE_EXACT_ALARM` yalnızca API 31–32 için (`maxSdkVersion="32"`).
+- **Play Store'a çıkmadan önce yeniden düşünülmeli:** `USE_EXACT_ALARM` mağaza denetimine tabidir (yalnızca alarm/takvim uygulamalarına izin verilir). Seçenekler: `SCHEDULE_EXACT_ALARM` + izin ekranına yönlendirme ya da dinlenme boyunca kısa bir ön plan servisi.
+- İzin yoksa eklenti `exact_alarms_not_permitted` verir; uygulama gecikebilen alarma (`inexactAllowWhileIdle`) düşer.

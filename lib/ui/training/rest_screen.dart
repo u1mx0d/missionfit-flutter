@@ -190,6 +190,15 @@ class _RestClockState extends ConsumerState<_RestClock> with SingleTickerProvide
   Timer? _timer;
   bool? _reduced;
 
+  /// Süre dolunca `finishIfDue` bir kez istenir (her karede kuyruğa girmesin).
+  bool _finishing = false;
+
+  @override
+  void didUpdateWidget(_RestClock old) {
+    super.didUpdateWidget(old);
+    if (old.rest != widget.rest) _finishing = false;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -216,7 +225,8 @@ class _RestClockState extends ConsumerState<_RestClock> with SingleTickerProvide
 
   void _tick() {
     if (!mounted) return;
-    if (widget.rest.remaining(ref.read(clockProvider)()) == Duration.zero) {
+    if (!_finishing && widget.rest.remaining(ref.read(clockProvider)()) == Duration.zero) {
+      _finishing = true;
       unawaited(ref.read(restTimerProvider.notifier).finishIfDue());
     }
     setState(() {});

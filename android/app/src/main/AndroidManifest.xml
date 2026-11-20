@@ -1,9 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <!-- Dinlenme bitişi tam zamanlı alarmla gelir. Android 14+ SCHEDULE_EXACT_ALARM'ı varsayılan
-         vermez; uygulama mağazaya çıkmadığı için izinsiz verilen USE_EXACT_ALARM kullanılır
-         (Play Store'a çıkılacaksa yeniden düşünülmeli). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>
+    <!-- Dinlenme bitişi tam zamanlı alarmla gelir. API 33+ izinsiz verilen USE_EXACT_ALARM
+         kullanılır (SCHEDULE_EXACT_ALARM yalnızca 31-32 için). Play Store'a çıkılacaksa yeniden
+         düşünülmeli: bkz. docs/superpowers/plans/2026-11-18-asama-1-temel-notlar.md. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application

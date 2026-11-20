@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/active_workout.dart';
 import '../domain/week.dart';
 import 'profile_controller.dart';
+import 'providers.dart' show notificationServiceProvider;
 import 'rest_timer.dart';
 import 'today_provider.dart' show defaultTimeZone;
 import 'workout_providers.dart';
@@ -44,6 +46,16 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
   }
 
   void _clearDrafts() => ref.read(focusDraftsProvider.notifier).clearAll();
+
+  /// Antrenman kapanınca dinlenme bildirimi ve bitiş alarmı kesin kalkar (dinlenme sayacı
+  /// hiç kurulmamış olsa da: ör. soğuk açılış → ana sayfa → bitir).
+  Future<void> _cancelRest() async {
+    try {
+      await ref.read(notificationServiceProvider).cancelRest();
+    } catch (e) {
+      debugPrint('Dinlenme bildirimi kaldırılamadı: $e');
+    }
+  }
 
   Future<void> start(List<PlannedExercise> plan, {String? templateId, String? name}) =>
       _serial(() async {
@@ -163,6 +175,7 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
     final profile = await ref.read(profileProvider.future);
     final r = await _repo.finish(w, bodyWeightKg: profile?.weightKg);
     _clearDrafts();
+    await _cancelRest();
     // Sonraki antrenmanın "geçen sefer"i ve son antrenmanlar listesi yenilensin.
     ref.invalidate(lastSessionSetsProvider);
     ref.invalidate(recentWorkoutsProvider);
@@ -174,6 +187,7 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
     final w = await _current();
     await _repo.discard(w.sessionId);
     _clearDrafts();
+    await _cancelRest();
     state = const AsyncData(null);
   });
 }

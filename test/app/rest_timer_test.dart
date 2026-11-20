@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:isolate';
+import 'dart:ui' show IsolateNameServer;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -301,6 +303,10 @@ void main() {
       expect(state(c2)!.totalSeconds, 90);
       expect(state(c2)!.remaining(now), const Duration(seconds: 60));
       expect(notifications.cancels, 0);
+      // "Zorla durdur" bildirimi ve alarmı silmiş olabilir: ikisi de yeniden kurulur.
+      final end = t0.add(const Duration(seconds: 90));
+      expect(notifications.shown.single.endsAt, end);
+      expect(notifications.scheduled, [end]);
     });
 
     test('bitiş geçmişteyse dinlenme bitmiş sayılır, bildirim iptal edilir', () async {
@@ -399,5 +405,28 @@ void main() {
       expect(state(c), isNull);
       expect(notifications.cancels, 1);
     });
+  });
+
+  test('ana isolate kapısı gelen eylemi alındı diye yanıtlar', () async {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    final received = <RestActionMessage>[];
+    final sub = c.read(restActionsProvider).listen(received.add);
+    addTearDown(sub.cancel);
+    final port = IsolateNameServer.lookupPortByName(restActionPortName)!;
+    final reply = ReceivePort();
+    addTearDown(reply.close);
+    const p = RestPayload(
+      sessionId: 's1',
+      userId: 'u1',
+      exerciseId: 'bench',
+      totalSeconds: 90,
+      nextLabel: 'x',
+    );
+
+    port.send(const RestActionMessage(RestAction.plus15, p).toPort(reply.sendPort));
+
+    expect(await reply.first.timeout(const Duration(seconds: 2)), isTrue);
+    expect(received.single.payload, p);
   });
 }

@@ -59,6 +59,21 @@ class FakePlatform implements NotificationsPlatform {
   Future<void> cancelAll() async => calls.add('cancelAll');
 }
 
+class _BrokenRepo extends Fake implements WorkoutRepository {
+  @override
+  Future<DateTime?> restEndFor(String sessionId) => Future.error(StateError('disk kilitli'));
+  @override
+  Future<void> setRestEnd(String sessionId, DateTime? endsAt) =>
+      Future.error(StateError('disk kilitli'));
+}
+
+NotificationResponse _response(String actionId, RestPayload p) => NotificationResponse(
+  notificationResponseType: NotificationResponseType.selectedNotificationAction,
+  id: restNotificationId,
+  actionId: actionId,
+  payload: p.encode(),
+);
+
 const _bench = PlannedExercise(
   exerciseId: 'bench',
   tracking: 'weight_reps',
@@ -245,23 +260,62 @@ void main() {
       expect(await repo.restEndFor(sessionId), isNull);
     });
 
-    test('ana isolate açıksa eylem oraya iletilir, disk açılmaz', () async {
+    test('ana isolate açıksa eylem oraya iletilir, alındı gelince disk açılmaz', () async {
       final port = ReceivePort();
       addTearDown(port.close);
+      final received = <RestActionMessage>[];
+      port.listen((m) {
+        received.add(RestActionMessage.fromPort(m)!);
+        ackRestMessage(m);
+      });
       final applied = <RestActionMessage>[];
-      final r = NotificationResponse(
-        notificationResponseType: NotificationResponseType.selectedNotificationAction,
-        id: restNotificationId,
-        actionId: restActionPlus15,
-        payload: payload().encode(),
+      var stale = 0;
+
+      await handleRestResponse(
+        _response(restActionPlus15, payload()),
+        mainPort: () => port.sendPort,
+        applyInBackground: applied.add,
+        onStalePort: () => stale++,
       );
 
-      await handleRestResponse(r, mainPort: () => port.sendPort, applyInBackground: applied.add);
-
-      final msg = RestActionMessage.fromPort(await port.first);
-      expect(msg!.action, RestAction.plus15);
-      expect(msg.payload, payload());
+      expect(received.single.action, RestAction.plus15);
+      expect(received.single.payload, payload());
       expect(applied, isEmpty);
+      expect(stale, 0);
+    });
+
+    test(
+      'kayıtlı kapı ölü (alındı gelmiyor) → kayıt silinir, eylem arka planda uygulanır',
+      () async {
+        // Mesajı alan ama hiç yanıt vermeyen kapı: ölmüş isolate'ın kaydı gibi.
+        final dead = ReceivePort();
+        addTearDown(dead.close);
+        final applied = <RestActionMessage>[];
+        var stale = 0;
+
+        await handleRestResponse(
+          _response(restActionSkip, payload()),
+          mainPort: () => dead.sendPort,
+          applyInBackground: applied.add,
+          onStalePort: () => stale++,
+          ackTimeout: const Duration(milliseconds: 50),
+        );
+
+        expect(stale, 1);
+        expect(applied.single.action, RestAction.skip);
+        expect(applied.single.payload, payload());
+      },
+    );
+
+    test('"Atla": disk hata verse de bildirim ve alarm iptal edilir', () async {
+      await applyRestAction(
+        RestAction.skip,
+        payload(),
+        repo: _BrokenRepo(),
+        notifications: service,
+        now: now,
+      );
+      expect(platform.cancelled, [restNotificationId]);
     });
 
     test('uygulama kapalıysa eylem arka planda uygulanır', () async {

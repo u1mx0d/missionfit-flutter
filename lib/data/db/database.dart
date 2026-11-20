@@ -43,7 +43,15 @@ class AppDatabase extends _$AppDatabase {
     return AppDatabase._(
       LazyDatabase(() async {
         final dir = await getApplicationDocumentsDirectory();
-        return NativeDatabase.createInBackground(File(p.join(dir.path, 'missionfit.sqlite')));
+        return NativeDatabase.createInBackground(
+          File(p.join(dir.path, 'missionfit.sqlite')),
+          // Her bağlantıda (ana ve arka plan isolate'ı): dinlenme bildirimi eylemleri ikinci
+          // bir bağlantı açabilir; WAL okuma/yazmayı ayırır, meşgulse 3 sn beklenir.
+          setup: (db) {
+            db.execute('PRAGMA busy_timeout = 3000');
+            db.execute('PRAGMA journal_mode = WAL');
+          },
+        );
       }),
     );
   }

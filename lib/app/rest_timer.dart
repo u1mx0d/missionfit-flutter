@@ -117,7 +117,13 @@ final restActionsProvider = Provider<Stream<RestActionMessage>>((ref) {
     IsolateNameServer.removePortNameMapping(restActionPortName);
     port.close();
   });
-  return port.map(RestActionMessage.fromPort).where((m) => m != null).cast<RestActionMessage>();
+  return port
+      .map((msg) {
+        ackRestMessage(msg);
+        return RestActionMessage.fromPort(msg);
+      })
+      .where((m) => m != null)
+      .cast<RestActionMessage>();
 });
 
 /// Dinlenme bitince uygulama öndeyse güçlü titreşim (bildirim de titrer).
@@ -248,19 +254,25 @@ class RestTimer extends Notifier<RestState?> {
       return;
     }
     final cur = state;
-    if (cur != null && cur.endsAt == end) return;
-    final last = _lastSet(w);
-    final exerciseId = cur?.exerciseId ?? last?.exerciseId ?? w.currentExerciseId;
-    if (exerciseId == null) return;
-    final left = end.difference(now).inSeconds;
-    final sinceSet = last == null ? 0 : end.difference(last.completedAt).inSeconds;
-    _set(
-      RestState(
+    final RestState s;
+    if (cur != null && cur.endsAt == end) {
+      s = cur;
+    } else {
+      final last = _lastSet(w);
+      final exerciseId = cur?.exerciseId ?? last?.exerciseId ?? w.currentExerciseId;
+      if (exerciseId == null) return;
+      final left = end.difference(now).inSeconds;
+      final sinceSet = last == null ? 0 : end.difference(last.completedAt).inSeconds;
+      s = RestState(
         endsAt: end,
         totalSeconds: math.max(restMinSeconds, math.max(left, sinceSet)),
         exerciseId: exerciseId,
-      ),
-    );
+      );
+      _set(s);
+    }
+    // Bildirim ve alarm yeniden kurulur (aynı kimlik, zararsız): "zorla durdur" ikisini de
+    // silmiş olabilir.
+    await _publish(s);
   });
 
   LoggedSet? _lastSet(ActiveWorkout w) {
