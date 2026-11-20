@@ -6,6 +6,9 @@ library;
 const healthDisclaimer =
     'MissionFit tıbbi veya diyetisyen tavsiyesi vermez. Kalori hedefi ve yakılan kalori değerleri genel formüllere dayanan tahminlerdir. Bir sağlık sorunun, hamileliğin veya özel bir beslenme ihtiyacın varsa bir sağlık profesyoneline danış.';
 
+/// 3B maket modelinin kaynağı (CC0; atıf zorunlu değil ama belirtilir).
+const modelAttribution = '3B model: MakeHuman / MPFB (CC0)';
+
 const kvkkTitle = 'KVKK Aydınlatma Metni';
 
 /// Açık rıza onay kutusu metni (RN onboarding ile aynı).

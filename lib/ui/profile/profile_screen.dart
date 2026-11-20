@@ -361,6 +361,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with WidgetsBindi
               textAlign: TextAlign.center,
               style: TextStyle(color: t.textMuted, fontSize: 12),
             ),
+            const SizedBox(height: 12),
+            Text(
+              modelAttribution,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: t.textMuted, fontSize: 12),
+            ),
           ],
         ),
       ),

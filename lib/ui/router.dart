@@ -18,6 +18,7 @@ import 'placeholders/coming_soon_screen.dart';
 import 'profile/profile_routes.dart';
 import 'shell/app_shell.dart';
 import 'today/today_screen.dart';
+import 'training/stale_workout.dart';
 import 'training/training_routes.dart';
 import 'training/training_screen.dart';
 
@@ -109,7 +110,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Kabuğun dışında: odak modunda alt bar görünmez.
       ...trainingRoutes,
       StatefulShellRoute.indexedStack(
-        builder: (_, _, shell) => AppShell(navigationShell: shell),
+        // Açılışta 24 saatten eski aktif antrenman varsa (hangi sekmede olursa) bir kez sorulur.
+        builder: (_, _, shell) => StaleWorkoutWatcher(child: AppShell(navigationShell: shell)),
         branches: [
           StatefulShellBranch(
             routes: [GoRoute(path: '/bugun', builder: (_, _) => const TodayScreen())],

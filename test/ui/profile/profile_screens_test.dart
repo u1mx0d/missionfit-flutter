@@ -370,6 +370,13 @@ void main() {
   });
 
   group('Profil', () {
+    testWidgets('bilgi bölümünde 3B model atfı', (t) async {
+      await _pump(t);
+      final f = find.text('3B model: MakeHuman / MPFB (CC0)');
+      await t.scrollUntilVisible(f, 300, scrollable: find.byType(Scrollable).first);
+      expect(f, findsOneWidget);
+    });
+
     testWidgets('şifre değiştir yalnızca e-posta kimliğinde görünür', (t) async {
       await _pump(t, password: false);
       expect(find.text('Şifre değiştir'), findsNothing);

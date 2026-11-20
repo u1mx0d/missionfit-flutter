@@ -522,6 +522,21 @@ void main() {
       expect(find.text('ANTRENMAN'), findsOneWidget);
       expect(find.text('Hiç set yok, antrenman kaydedilmedi.'), findsOneWidget);
     });
+
+    testWidgets('Bitir: setliyse özet ekranına (oturum kimliğiyle) gider', (t) async {
+      final ctx = await _pump(t, sets: [_set('bench', 1)]);
+      ctx.repo.finishResult = const Saved(250);
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(FilledButton, 'Bitir'));
+      await t.pumpAndSettle();
+      expect(ctx.repo.calls, contains('finish'));
+      expect(
+        ctx.router.routerDelegate.currentConfiguration.last.matchedLocation,
+        '/antrenman/ozet/s1',
+      );
+      expect(find.text('Hiç set yok, antrenman kaydedilmedi.'), findsNothing);
+    });
   });
 
   testWidgets('ekran açık kalır; çıkınca kapanır', (t) async {

@@ -273,3 +273,10 @@ SetValues prefill(String exerciseId, ActiveWorkout w, List<LoggedSet> lastSessio
 /// Hedef set: şablon; yoksa son antrenmandaki set sayısı; yoksa 3.
 int targetSetsFor({int? templateSets, int? lastSessionSetCount}) =>
     templateSets ?? lastSessionSetCount ?? 3;
+
+/// Bu süreden uzun açık kalan antrenman "yarım kalmış" sayılır; açılışta "Bitir mi, sil mi?"
+/// diye sorulur.
+const staleWorkoutAge = Duration(hours: 24);
+
+bool isStaleWorkout(DateTime startedAt, DateTime now) =>
+    now.toUtc().difference(startedAt.toUtc()) > staleWorkoutAge;

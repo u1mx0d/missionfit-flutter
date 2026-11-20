@@ -177,4 +177,12 @@ void main() {
     final e = ex('bench', target: 4);
     expect(PlannedExercise.fromJson(e.toJson()), e);
   });
+
+  test('isStaleWorkout: 24 saatten eski', () {
+    final start = DateTime.utc(2026, 11, 19, 10);
+    expect(isStaleWorkout(start, start.add(const Duration(hours: 23, minutes: 59))), isFalse);
+    expect(isStaleWorkout(start, start.add(const Duration(hours: 24))), isFalse);
+    expect(isStaleWorkout(start, start.add(const Duration(hours: 24, seconds: 1))), isTrue);
+    expect(isStaleWorkout(start, start.toLocal().add(const Duration(days: 3))), isTrue);
+  });
 }

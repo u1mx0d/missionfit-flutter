@@ -23,6 +23,7 @@ import 'focus_rail.dart';
 import 'focus_steppers.dart';
 import 'focus_widgets.dart';
 import 'rest_screen.dart';
+import 'workout_summary_screen.dart' show routeAfterFinish;
 
 /// Odak modu: yalnızca o anki hareket ve set. Klavye açılmaz; değerler önceden dolu gelir,
 /// –/+ ile değişir, set tek dokunuşla tamamlanır. Ekran açık kalır. Dinlenme sürerken
@@ -252,16 +253,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingOb
       messenger.showSnackBar(const SnackBar(content: Text('Antrenman bitirilemedi. Tekrar dene.')));
       return;
     }
-    messenger.hideCurrentSnackBar();
-    router.go('/antrenman');
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(switch (r) {
-          Saved() => 'Antrenman kaydedildi.',
-          DiscardedEmpty() => 'Hiç set yok, antrenman kaydedilmedi.',
-        }),
-      ),
-    );
+    routeAfterFinish(router, messenger, w.sessionId, r);
   }
 
   @override

@@ -14,6 +14,7 @@ import '../../domain/turkish_text.dart';
 import '../components/dot_grid.dart';
 import '../theme/mf_theme.dart';
 import 'focus_widgets.dart' show FocusCta;
+import 'stale_workout.dart';
 import 'training_screen.dart' show regionTitle;
 
 /// Antrenmanı başlatır ve odak moduna geçer. Süren bir antrenman varsa ikincisi açılmaz:
@@ -30,7 +31,10 @@ Future<void> startOrResume(
   final ctl = ref.read(activeWorkoutControllerProvider.notifier);
   try {
     await ctl.start(await planOf(), templateId: templateId, name: name);
-  } on WorkoutAlreadyActive {
+  } on WorkoutAlreadyActive catch (e) {
+    // 24 saatten eskiyse devam etmeden önce "Bitir mi, sil mi?" sorulur.
+    if (!context.mounted) return;
+    if (await resolveStaleWorkout(context, ref, e.workout) != StaleOutcome.fresh) return;
     messenger.showSnackBar(
       const SnackBar(content: Text('Süren bir antrenman var, ona devam ediliyor.')),
     );

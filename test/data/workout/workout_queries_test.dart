@@ -387,4 +387,54 @@ void main() {
       expect(seen, [0, 1]);
     });
   });
+
+  group('oturum özeti', () {
+    test('sessionBodyMap yalnızca o oturumu sayar; birincil 1, ikincil 0,5', () async {
+      await session('s1', '2026-11-16', 'completed');
+      for (var i = 1; i <= 4; i++) {
+        await set('s1', 'bench', 0, i);
+      }
+      await set('s1', 'dips', 1, 1);
+      // Aynı haftadaki başka oturum sayılmaz.
+      await session('s2', '2026-11-17', 'completed');
+      for (var i = 1; i <= 10; i++) {
+        await set('s2', 'squat', 0, i);
+      }
+      final m = await q.sessionBodyMap('s1');
+      expect(m.muscleSets['chest'], 4.5);
+      expect(m.muscleSets['triceps'], 3);
+      expect(m.muscleSets['shoulders'], 2);
+      expect(m.muscleSets['quads'], 0);
+      expect(m.levels['chest'], 2);
+      expect(m.levels['triceps'], 1);
+      expect(m.levels['quads'], 0);
+      expect(m.totalSets, 5);
+      expect(m.musclesWorked, 3);
+    });
+
+    test('sessionBodyMap: bilinmeyen oturum boş', () async {
+      final m = await q.sessionBodyMap('yok');
+      expect(m.totalSets, 0);
+      expect(m.levels.values.every((l) => l == 0), isTrue);
+    });
+
+    test('sessionSummary: zamanlar, kalori ve MET ile setler', () async {
+      await session('s1', '2026-11-16', 'completed', name: 'Göğüs');
+      await db
+          .update(db.workoutSessions)
+          .write(const WorkoutSessionsCompanion(estimatedKcal: Value(210)));
+      await set('s1', 'bench', 0, 1, reps: 8, kg: 60);
+      await set('s1', 'dips', 1, 1, reps: 10, kg: null);
+      final s = (await q.sessionSummary('s1'))!;
+      expect(s.name, 'Göğüs');
+      expect(s.startedAt, DateTime.utc(2026, 11, 16, 10));
+      expect(s.endedAt, DateTime.utc(2026, 11, 16, 11));
+      expect(s.estimatedKcal, 210);
+      expect(s.sets.map((x) => x.exerciseId), ['bench', 'dips']);
+      expect(s.sets.first.met, 5);
+      expect(s.sets.first.weightKg, 60);
+      expect(s.sets.last.weightKg, isNull);
+      expect(await q.sessionSummary('yok'), isNull);
+    });
+  });
 }

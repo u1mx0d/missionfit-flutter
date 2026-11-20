@@ -14,6 +14,7 @@ export '../data/workout/workout_queries.dart'
         ExerciseOption,
         MuscleGroupOption,
         RecentWorkout,
+        SessionSummaryData,
         TemplateOption,
         WeeklyBodyMap,
         WorkoutQueries;
@@ -45,6 +46,20 @@ final recentWorkoutsProvider = FutureProvider<List<RecentWorkout>>((ref) {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) return const [];
   return ref.watch(workoutQueriesProvider).recent(userId);
+});
+
+/// Antrenman özeti: oturumun kendisi ve YALNIZCA bu oturumun maketi (haftalık kademelerle).
+typedef WorkoutSummaryView = ({SessionSummaryData data, WeeklyBodyMap map});
+
+/// Oturum bulunamazsa null.
+final workoutSummaryProvider = FutureProvider.autoDispose.family<WorkoutSummaryView?, String>((
+  ref,
+  sessionId,
+) async {
+  final q = ref.watch(workoutQueriesProvider);
+  final data = await q.sessionSummary(sessionId);
+  if (data == null) return null;
+  return (data: data, map: await q.sessionBodyMap(sessionId));
 });
 
 /// Hareketin adı, takip tipi, ekipmanı ve bölgesi (odak modu şeridi ve başlığı).

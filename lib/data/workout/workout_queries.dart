@@ -5,6 +5,7 @@ import '../../domain/body_map.dart';
 import '../../domain/muscle_coverage.dart';
 import '../../domain/turkish_text.dart';
 import '../../domain/week.dart';
+import '../../domain/workout_summary.dart';
 import '../db/database.dart' hide ExerciseMuscle;
 
 DateTime _utc(String s) => DateTime.parse(s).toUtc();
@@ -12,7 +13,7 @@ DateTime _utc(String s) => DateTime.parse(s).toUtc();
 BodyRegion _region(String s) =>
     BodyRegion.values.firstWhere((r) => r.name == s, orElse: () => BodyRegion.core);
 
-/// Haftalık maket verisi: 14 kas için ağırlıklı set, kademe (0–3) ve son çalışılan gün.
+/// Maket verisi (haftalık ya da tek oturum): 14 kas için ağırlıklı set, kademe (0–3) ve son çalışılan gün.
 class WeeklyBodyMap {
   const WeeklyBodyMap({
     required this.muscleSets,
@@ -37,6 +38,30 @@ class WeeklyBodyMap {
   /// 14 maket bölgesinden (kas) bu hafta en az bir ağırlıklı seti olanların sayısı.
   final int musclesWorked;
   final int totalSets;
+}
+
+/// Bitmiş (ya da süren) bir oturumun özet verisi.
+class SessionSummaryData {
+  const SessionSummaryData({
+    required this.sessionId,
+    required this.name,
+    required this.startedAt,
+    required this.endedAt,
+    required this.estimatedKcal,
+    required this.sets,
+  });
+  final String sessionId;
+  final String name;
+  final DateTime startedAt;
+
+  /// Süren oturumda null.
+  final DateTime? endedAt;
+
+  /// Kilo bilinmiyorsa null (özette kalori gösterilmez).
+  final int? estimatedKcal;
+
+  /// Setler (`exerciseOrder`, `setIndex` sırasıyla); katalogda olmayan hareketin MET'i 0.
+  final List<SummarySet> sets;
 }
 
 class RecentWorkout {
@@ -127,6 +152,58 @@ class WorkoutQueries {
       ];
       return _build(sets, window);
     });
+  }
+
+  /// Yalnızca bu oturumun maketi: haftalıkla aynı ağırlık (birincil 1, ikincil 0,5) ve
+  /// aynı kademeler. Oturum yoksa boş.
+  Future<WeeklyBodyMap> sessionBodyMap(String sessionId) async {
+    final session = await (_db.select(
+      _db.workoutSessions,
+    )..where((r) => r.id.equals(sessionId))).getSingleOrNull();
+    if (session == null) return WeeklyBodyMap.empty;
+    final rows = await (_db.select(
+      _db.sessionSets,
+    )..where((r) => r.sessionId.equals(sessionId))).get();
+    final day = session.localDate;
+    return _build([for (final r in rows) CoverageSet(r.exerciseId, day)], _Day(day));
+  }
+
+  Future<SessionSummaryData?> sessionSummary(String sessionId) async {
+    final session = await (_db.select(
+      _db.workoutSessions,
+    )..where((r) => r.id.equals(sessionId))).getSingleOrNull();
+    if (session == null) return null;
+    final rows =
+        await (_db.select(_db.sessionSets)
+              ..where((r) => r.sessionId.equals(sessionId))
+              ..orderBy([
+                (r) => OrderingTerm.asc(r.exerciseOrder),
+                (r) => OrderingTerm.asc(r.setIndex),
+              ]))
+            .get();
+    final ids = {for (final r in rows) r.exerciseId};
+    final metOf = {
+      for (final e in await (_db.select(_db.exercises)..where((e) => e.id.isIn(ids))).get())
+        e.id: e.metValue,
+    };
+    final ended = session.endedAt;
+    return SessionSummaryData(
+      sessionId: session.id,
+      name: session.name,
+      startedAt: _utc(session.startedAt),
+      endedAt: ended == null ? null : _utc(ended),
+      estimatedKcal: session.estimatedKcal,
+      sets: [
+        for (final r in rows)
+          SummarySet(
+            exerciseId: r.exerciseId,
+            met: metOf[r.exerciseId] ?? 0,
+            reps: r.reps,
+            weightKg: r.weightKg,
+            durationSeconds: r.durationSeconds,
+          ),
+      ],
+    );
   }
 
   Future<WeeklyBodyMap> _build(List<CoverageSet> sets, DateRange window) async {
@@ -386,4 +463,13 @@ class WorkoutQueries {
       ];
     });
   }
+}
+
+/// Tek günlük pencere (oturum maketi).
+class _Day implements DateRange {
+  const _Day(this.start);
+  @override
+  final LocalDate start;
+  @override
+  LocalDate get end => start;
 }
