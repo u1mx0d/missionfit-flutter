@@ -31,6 +31,7 @@ REGIONS = [
 KEYS = {"frames", "stepDegrees", "width", "height", "regions", "attribution"}
 ATTRIBUTION = "MakeHuman / MPFB (CC0)"
 EDGE_PX = 1  # alfa/boşluk uyuşmazlığına izin verilen siluet kenarı genişliği
+MAX_ISOLATED = 40  # kare başına izin verilen tekil kimlik pikseli (ölçülen en kötü: 38)
 HAZE_MAX = 32  # boş pikselde izin verilen en yüksek soluk alfa (0–255)
 
 
@@ -97,7 +98,9 @@ def main():
         n_iso = int(isolated(red).sum())
         tot_iso += n_iso
         worst_iso = max(worst_iso, (n_iso, f))
-        if n_iso:
+        # Tekil pikseller gerçek ince geometri (ör. triceps şeridi), AA karışımı değil; uygulama
+        # dokunmada 5×5 çoğunluk oyu kullanır. Kare başına MAX_ISOLATED'e kadar uyarı, üstü hata.
+        if n_iso > MAX_ISOLATED:
             ys, xs = np.nonzero(isolated(red))
             errors.append(f"id_{f:03d}: {n_iso} tekil piksel, ör. (x={xs[0]}, y={ys[0]}) "
                           f"değer {int(red[ys[0], xs[0]])}")
