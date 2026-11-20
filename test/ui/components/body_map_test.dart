@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:convert';
 
 import 'dart:ui' as ui;
@@ -394,63 +395,142 @@ void main() {
     });
 
     for (final family in ThemeFamily.values) {
-      testWidgets('shader: göğüs vurgu renginde, köşe boş (${family.name})', (tester) async {
-        if (program == null) {
-          markTestSkipped('FragmentProgram bu ortamda yüklenemedi');
-          return;
-        }
-        final theme = MfTheme.build(family, Brightness.dark, defaultAccentFor(family));
-        final key = GlobalKey();
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              bodyMapFramesProvider.overrideWith((ref) => frames),
-              bodyMapProgramProvider.overrideWith((ref) async => program),
-            ],
-            child: MaterialApp(
-              theme: buildThemeData(theme),
-              home: MediaQuery(
-                data: const MediaQueryData(disableAnimations: true),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: RepaintBoundary(
-                    key: key,
-                    child: const SizedBox(
-                      width: 360,
-                      height: 720,
-                      child: BodyMap(levels: {'chest': 3}),
+      for (final b in Brightness.values) {
+        testWidgets('shader: göğüs vurgu renginde, köşe boş (${family.name} ${b.name})', (
+          tester,
+        ) async {
+          if (program == null) {
+            markTestSkipped('FragmentProgram bu ortamda yüklenemedi');
+            return;
+          }
+          final theme = MfTheme.build(family, b, defaultAccentFor(family));
+          final key = GlobalKey();
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                bodyMapFramesProvider.overrideWith((ref) => frames),
+                bodyMapProgramProvider.overrideWith((ref) async => program),
+              ],
+              child: MaterialApp(
+                theme: buildThemeData(theme),
+                home: MediaQuery(
+                  data: const MediaQueryData(disableAnimations: true),
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: RepaintBoundary(
+                      key: key,
+                      child: const SizedBox(
+                        width: 360,
+                        height: 720,
+                        child: BodyMap(levels: {'chest': 3}),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        );
-        await tester.pump();
-        final rgba = (await tester.runAsync(() async {
-          final img = await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary)
-              .toImage();
-          final bytes = await img.toByteData();
-          img.dispose();
-          return bytes!;
-        }))!;
-        List<int> px(int x, int y) => [
-          for (var c = 0; c < 4; c++) rgba.getUint8((y * 360 + x) * 4 + c),
-        ];
-        // Göğüs bölgesinde birkaç noktadan en az biri vurguya yakın (nokta aralarında boşluk olabilir).
-        final accent = theme.accent;
-        var hit = false;
-        for (var dy = -4; dy <= 4 && !hit; dy++) {
-          for (var dx = -4; dx <= 4 && !hit; dx++) {
-            final p = px(_chestPx.dx.toInt() + dx, _chestPx.dy.toInt() + dy);
-            final dominant = accent.g > accent.r ? p[1] > p[0] + 20 : p[0] > p[1] + 20;
-            hit = p[3] > 100 && dominant;
+          );
+          await tester.pump();
+          final rgba = (await tester.runAsync(() async {
+            final img = await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary)
+                .toImage();
+            final bytes = await img.toByteData();
+            img.dispose();
+            return bytes!;
+          }))!;
+          List<int> px(int x, int y) => [
+            for (var c = 0; c < 4; c++) rgba.getUint8((y * 360 + x) * 4 + c),
+          ];
+          // Göğüs bölgesinde birkaç noktadan en az biri vurguya yakın (nokta aralarında boşluk olabilir).
+          final accent = theme.accent;
+          var hit = false;
+          for (var dy = -4; dy <= 4 && !hit; dy++) {
+            for (var dx = -4; dx <= 4 && !hit; dx++) {
+              final p = px(_chestPx.dx.toInt() + dx, _chestPx.dy.toInt() + dy);
+              final dominant = accent.g > accent.r ? p[1] > p[0] + 20 : p[0] > p[1] + 20;
+              hit = p[3] > 100 && dominant;
+            }
+          }
+          expect(hit, isTrue);
+          expect(px(1, 1)[3], 0);
+        });
+      }
+    }
+
+    // Açık temada maket koyu bir figür değil: Canlı'da taş açık, siluet kenarı zemine ≥ 3:1.
+    testWidgets('açık Canlı: açık taş, siluet kenarı zemine ≥ 3:1', (tester) async {
+      if (program == null) {
+        markTestSkipped('FragmentProgram bu ortamda yüklenemedi');
+        return;
+      }
+      final theme = MfTheme.build(ThemeFamily.canli, Brightness.light, AccentColor.yesil);
+      final rgba = await _renderOn(tester, frames, program!, theme, const {'chest': 3});
+      final bg = theme.background.computeLuminance();
+      double lum(int o) => Color.fromARGB(
+        255,
+        rgba.getUint8(o),
+        rgba.getUint8(o + 1),
+        rgba.getUint8(o + 2),
+      ).computeLuminance();
+      double ratio(double a, double b) =>
+          (a > b ? a + 0.05 : b + 0.05) / (a > b ? b + 0.05 : a + 0.05);
+      // Cilt (kimlik 0) piksellerinin ortanca parlaklığı yüksek.
+      final skin = <double>[];
+      for (var y = 0; y < 720; y += 2) {
+        for (var x = 0; x < 360; x += 2) {
+          final id = frames.regionAt(0, Offset(x + 0.5, y + 0.5), const Size(360, 720));
+          if (id == 0) skin.add(lum((y * 360 + x) * 4));
+        }
+      }
+      skin.sort();
+      expect(skin[skin.length ~/ 2], greaterThan(0.45));
+      // Siluet kenarı: her satırda soldan zeminden ayrılan ilk pikselden sonraki 4 pikselde
+      // zemine ≥ 3:1 bir kenar pikseli olur.
+      var rows = 0, ok = 0;
+      for (var y = 60; y < 700; y += 10) {
+        var x = 0;
+        while (x < 356 && ratio(lum((y * 360 + x) * 4), bg) < 1.15) {
+          x++;
+        }
+        if (x >= 356) continue;
+        rows++;
+        var best = 0.0;
+        for (var k = 0; k < 4; k++) {
+          best = max(best, ratio(lum((y * 360 + x + k) * 4), bg));
+        }
+        if (best >= 3) ok++;
+      }
+      expect(rows, greaterThan(40));
+      expect(ok / rows, greaterThan(0.9));
+    });
+
+    testWidgets('koyu ve açık Mono: boş noktalar tema rengiyle ayrışır', (tester) async {
+      if (program == null) {
+        markTestSkipped('FragmentProgram bu ortamda yüklenemedi');
+        return;
+      }
+      for (final b in Brightness.values) {
+        final theme = MfTheme.build(ThemeFamily.mono, b, AccentColor.kirmizi);
+        final rgba = await _renderOn(tester, frames, program!, theme, const {});
+        // Ön karede kafa bölgesinde en az bir nokta zemine ≥ 3:1.
+        final bg = theme.background.computeLuminance();
+        var best = 0.0;
+        for (var y = 30; y < 80; y++) {
+          for (var x = 160; x < 200; x++) {
+            final o = (y * 360 + x) * 4;
+            final l = Color.fromARGB(
+              255,
+              rgba.getUint8(o),
+              rgba.getUint8(o + 1),
+              rgba.getUint8(o + 2),
+            ).computeLuminance();
+            final r = (max(l, bg) + 0.05) / (min(l, bg) + 0.05);
+            if (r > best) best = r;
           }
         }
-        expect(hit, isTrue);
-        expect(px(1, 1)[3], 0);
-      });
-    }
+        expect(best, greaterThanOrEqualTo(3), reason: b.name);
+      }
+    });
   });
 
   group('shader seçimi', () {
@@ -579,4 +659,52 @@ void main() {
     expect(counts[15], 1);
     expect(counts.reduce((a, b) => a + b), 3);
   });
+}
+
+/// Maketi tema zemininde (opak) 360 × 720 boyar, RGBA baytlarını döndürür.
+Future<ByteData> _renderOn(
+  WidgetTester tester,
+  BodyMapFrames frames,
+  ui.FragmentProgram program,
+  MfTheme theme,
+  Map<String, int> levels,
+) async {
+  tester.view
+    ..physicalSize = const Size(400, 800)
+    ..devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  final key = GlobalKey();
+  await tester.pumpWidget(
+    ProviderScope(
+      key: UniqueKey(),
+      overrides: [
+        bodyMapFramesProvider.overrideWith((ref) => frames),
+        bodyMapProgramProvider.overrideWith((ref) async => program),
+      ],
+      child: MaterialApp(
+        theme: buildThemeData(theme),
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: RepaintBoundary(
+              key: key,
+              child: ColoredBox(
+                color: theme.background,
+                child: SizedBox(width: 360, height: 720, child: BodyMap(levels: levels)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump();
+  return (await tester.runAsync(() async {
+    final img = await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage();
+    final bytes = await img.toByteData();
+    img.dispose();
+    return bytes!;
+  }))!;
 }

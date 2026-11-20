@@ -16,6 +16,7 @@ import '../../domain/active_workout.dart';
 import '../../domain/feedback.dart' show regionLabels;
 import '../../domain/turkish_text.dart';
 import '../../domain/units.dart';
+import '../../domain/value_input.dart';
 import '../../domain/weight_step.dart';
 import '../components/dot_grid.dart';
 import '../theme/mf_theme.dart';
@@ -24,14 +25,15 @@ import 'focus_rail.dart';
 import 'focus_steppers.dart';
 import 'focus_widgets.dart';
 import 'rest_screen.dart';
+import 'value_entry_sheet.dart';
 import 'workout_summary_screen.dart' show routeAfterFinish;
 
 /// "Geri al" snackbar'ının alt boşluğu: odak modunda alt şerit (48 dp) ve "Seti tamamla"
 /// (60 dp), dinlenmede "Atla" (60 dp) üstünde kalır; kenar boşlukları dahil.
 const _undoBottomGap = 12.0 + 48 + 12 + 60 + 12;
 
-/// Odak modu: yalnızca o anki hareket ve set. Klavye açılmaz; değerler önceden dolu gelir,
-/// –/+ ile değişir, set tek dokunuşla tamamlanır. Ekran açık kalır. Dinlenme sürerken
+/// Odak modu: yalnızca o anki hareket ve set. Değerler önceden dolu gelir, –/+ ile değişir
+/// (değere dokunulursa yazarak da girilir; klavye yalnız o zaman açılır), set tek dokunuşla tamamlanır. Ekran açık kalır. Dinlenme sürerken
 /// dinlenme ekranı bunun üstünde tam ekran durur.
 class FocusScreen extends ConsumerStatefulWidget {
   const FocusScreen({super.key});
@@ -118,6 +120,34 @@ class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingOb
     // Basılı tutarken her adım son değeri okur.
     final latest = ref.read(activeWorkoutControllerProvider).value ?? w;
     ref.read(focusDraftsProvider.notifier).put(p.exerciseId, f(_valuesFor(latest, p)));
+  }
+
+  /// Ağırlığa dokununca yazarak giriş (kullanıcının biriminde, ızgaraya oturtulmaz).
+  Future<void> _typeWeight(ActiveWorkout w, PlannedExercise p, WeightUnit unit) async {
+    final cur = _valuesFor(w, p).weight;
+    final v = await showValueEntry<double>(
+      context,
+      title: 'Ağırlık',
+      label: 'Ağırlık (${unit.name})',
+      initial: cur == null ? '' : formatAmount(cur),
+      parse: (s) => parseWeightInput(s, unit),
+      decimal: true,
+    );
+    if (v == null || !mounted) return;
+    _change(w, p, (x) => FocusDraft(weight: v, reps: x.reps, durationSeconds: x.durationSeconds));
+  }
+
+  Future<void> _typeReps(ActiveWorkout w, PlannedExercise p) async {
+    final cur = _valuesFor(w, p).reps;
+    final v = await showValueEntry<int>(
+      context,
+      title: 'Tekrar',
+      label: 'Tekrar sayısı',
+      initial: cur?.toString() ?? '',
+      parse: parseRepsInput,
+    );
+    if (v == null || !mounted) return;
+    _change(w, p, (x) => FocusDraft(weight: x.weight, reps: v, durationSeconds: x.durationSeconds));
   }
 
   /// Hata mesajı gösterip yutar (ör. diske yazılamadı).
@@ -454,6 +484,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingOb
                 durationSeconds: x.durationSeconds,
               ),
             ),
+            onValueTap: () => _typeWeight(w, p, unit),
           ),
         if (duration)
           DurationField(
@@ -479,6 +510,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingOb
                 durationSeconds: x.durationSeconds,
               ),
             ),
+            onValueTap: () => _typeReps(w, p),
           ),
         const SizedBox(height: 8),
         LastTimeNote(

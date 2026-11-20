@@ -303,19 +303,32 @@ List<double> _selectedList(Set<int> ids) => [for (var i = 0; i < 15; i++) ids.co
 
 @immutable
 class _BodyMapColors {
-  const _BodyMapColors(this.style, this.accent, this.base, this.off, this.offFloor);
+  const _BodyMapColors(
+    this.style,
+    this.accent,
+    this.base,
+    this.off,
+    this.offFloor, {
+    required this.light,
+    required this.rim,
+  });
 
+  /// Renkler tema parlaklığından türetilir (tema adına bakılmaz).
   factory _BodyMapColors.of(MfTheme t) {
     final dark = t.brightness == Brightness.dark;
     return _BodyMapColors(
       t.bodyMapStyle,
       t.accent,
-      // Heykel taşı (Canlı): koyu zeminde açık gri, açık zeminde orta gri.
-      dark ? const Color(0xFFA8AAA9) : const Color(0xFF8C908E),
-      // Boş noktalar: ışık değeri saydamlığa çevrilir, en parlak yer yazı rengine yaklaşır.
-      t.text,
+      // Heykel taşı (Canlı): koyu zeminde açık gri, açık zeminde neredeyse beyaz taş.
+      dark ? const Color(0xFFA8AAA9) : const Color(0xFFF2F2F0),
+      // Boş noktalar: koyu zeminde yazı rengi (ışık saydamlığa çevrilir); açık zeminde
+      // basılı nokta-matris gibi orta gri.
+      dark ? t.text : t.textMuted,
       // Açık zeminde boş noktaların en düşük opaklığı; dolu noktalara uygulanmaz.
-      dark ? 0 : 0.45,
+      dark ? 0 : 0.7,
+      light: !dark,
+      // Açık zeminde siluet kenarı ve taşın en koyu gölgesi (zemine ≥ 3:1).
+      rim: const Color(0xFF7A7E7F),
     );
   }
 
@@ -324,6 +337,8 @@ class _BodyMapColors {
   final Color base;
   final Color off;
   final double offFloor;
+  final bool light;
+  final Color rim;
 
   @override
   bool operator ==(Object other) =>
@@ -332,10 +347,12 @@ class _BodyMapColors {
       other.accent == accent &&
       other.base == base &&
       other.off == off &&
-      other.offFloor == offFloor;
+      other.offFloor == offFloor &&
+      other.light == light &&
+      other.rim == rim;
 
   @override
-  int get hashCode => Object.hash(style, accent, base, off, offFloor);
+  int get hashCode => Object.hash(style, accent, base, off, offFloor, light, rim);
 }
 
 class _BodyMapPainter extends CustomPainter {
@@ -382,6 +399,8 @@ class _BodyMapPainter extends CustomPainter {
     selected.forEach(f);
     f(selected.any((x) => x > 0) ? 1 : 0);
     f(pulse.value);
+    f(colors.light ? 1 : 0);
+    color(colors.rim);
     shader
       // Aynı paketli doku iki kez bağlanır: ışık bilineer, kimlik en yakın komşu.
       ..setImageSampler(0, frames.images[frame], filterQuality: FilterQuality.low)

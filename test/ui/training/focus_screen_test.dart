@@ -355,6 +355,166 @@ void main() {
     });
   });
 
+  group('Değere dokunarak giriş', () {
+    Future<void> openEntry(WidgetTester t, String field) async {
+      await t.tap(find.byKey(Key('value-$field')));
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('value-entry-field')), findsOneWidget);
+    }
+
+    TextField field(WidgetTester t) =>
+        t.widget<TextField>(find.byKey(const Key('value-entry-field')));
+
+    testWidgets('ağırlık: dolu ve tümü seçili; "102,5" yazılır, + ızgaradan sürer, kg yazılır', (
+      t,
+    ) async {
+      final ctx = await _pump(t);
+      await openEntry(t, 'weight');
+      final c = field(t).controller!;
+      expect(c.text, '60');
+      expect(c.selection, const TextSelection(baseOffset: 0, extentOffset: 2));
+      expect(field(t).keyboardType, const TextInputType.numberWithOptions(decimal: true));
+      expect(find.text('Ağırlık (kg)'), findsOneWidget);
+      await t.enterText(find.byKey(const Key('value-entry-field')), '102,5');
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('value-entry-field')), findsNothing);
+      expect(_value(t, 'weight'), '102,5');
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.sets.single.weightKg, 102.5);
+      await t.tap(_btn('ağırlığı artır'));
+      await t.pump();
+      expect(_value(t, 'weight'), '105');
+    });
+
+    testWidgets('ızgara dışı değer korunur, 0,1e yuvarlanır', (t) async {
+      final ctx = await _pump(t);
+      await openEntry(t, 'weight');
+      await t.enterText(find.byKey(const Key('value-entry-field')), '61.23');
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(_value(t, 'weight'), '61,2');
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.sets.single.weightKg, 61.2);
+    });
+
+    testWidgets('lb: yazılan lb korunur, kg olarak (0,1) yazılır', (t) async {
+      final ctx = await _pump(t, units: WeightUnit.lb);
+      await openEntry(t, 'weight');
+      expect(find.text('Ağırlık (lb)'), findsOneWidget);
+      await t.enterText(find.byKey(const Key('value-entry-field')), '137,3');
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(_value(t, 'weight'), '137,3');
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.sets.single.weightKg, toKg(137.3, WeightUnit.lb));
+      expect(ctx.repo.active!.sets.single.weightKg, 62.3);
+      expect(_value(t, 'weight'), '137,3');
+    });
+
+    testWidgets('geçersiz değerde satır içi hata, kapanmaz', (t) async {
+      await _pump(t);
+      await openEntry(t, 'weight');
+      // Harfler alana girmez; boş kalan alan hata verir.
+      await t.enterText(find.byKey(const Key('value-entry-field')), 'abc');
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(find.text('Bir sayı gir (ör. 62,5).'), findsOneWidget);
+      await t.enterText(find.byKey(const Key('value-entry-field')), '2000');
+      await t.pump();
+      expect(find.text('Bir sayı gir (ör. 62,5).'), findsNothing); // yazınca hata kalkar
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(find.text('En fazla 1000 kg.'), findsOneWidget);
+      expect(find.byKey(const Key('value-entry-field')), findsOneWidget);
+      expect(_value(t, 'weight'), '60');
+    });
+
+    testWidgets('İptal değeri değiştirmez', (t) async {
+      await _pump(t);
+      await openEntry(t, 'weight');
+      await t.enterText(find.byKey(const Key('value-entry-field')), '90');
+      await t.tap(find.text('İptal'));
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('value-entry-field')), findsNothing);
+      expect(_value(t, 'weight'), '60');
+    });
+
+    testWidgets('tekrar yazılır; 501 hata', (t) async {
+      final ctx = await _pump(t);
+      await openEntry(t, 'reps');
+      expect(field(t).controller!.text, '8');
+      await t.enterText(find.byKey(const Key('value-entry-field')), '501');
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(find.text('1 ile 500 arasında olmalı.'), findsOneWidget);
+      await t.enterText(find.byKey(const Key('value-entry-field')), '12');
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(_value(t, 'reps'), '12');
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.sets.single.reps, 12);
+    });
+
+    testWidgets('süre dk:sn yazılır', (t) async {
+      final ctx = await _pump(t, plan: const [_plank]);
+      await openEntry(t, 'duration');
+      expect(find.text('Süre (dk:sn)'), findsOneWidget);
+      await t.enterText(find.byKey(const Key('value-entry-field')), '1:30');
+      await t.tap(find.text('Tamam'));
+      await t.pumpAndSettle();
+      expect(_value(t, 'duration'), '1:30');
+      await t.tap(_complete);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.sets.single.durationSeconds, 90);
+    });
+
+    testWidgets('değer düğme rolünde, ipucu ve ≥ 48 dp', (t) async {
+      final handle = t.ensureSemantics();
+      await _pump(t);
+      final node = find.semantics.byLabel('60 kg');
+      expect(
+        t.getSemantics(find.bySemanticsLabel('60 kg')),
+        matchesSemantics(
+          label: '60 kg',
+          hint: 'Değer girmek için dokun',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      expect(node, findsOne);
+      final size = t.getSize(
+        find.ancestor(of: find.byKey(const Key('value-weight')), matching: find.byType(InkWell)),
+      );
+      expect(size.height, greaterThanOrEqualTo(48));
+      expect(size.width, greaterThanOrEqualTo(48));
+      handle.dispose();
+    });
+
+    testWidgets('basılı tutma ~1,5 sn sonra 5 kat hızlanır', (t) async {
+      await _pump(t, plan: const [_fly], benchLast: const []);
+      final g = await t.startGesture(t.getCenter(_btn('tekrarı artır')));
+      // Uzun basma (~0,5 sn) + yavaş tikler; 1,4 sn'de henüz hızlanmamış.
+      for (var i = 0; i < 14; i++) {
+        await t.pump(const Duration(milliseconds: 100));
+      }
+      final slow = int.parse(_value(t, 'reps'));
+      for (var i = 0; i < 10; i++) {
+        await t.pump(const Duration(milliseconds: 60));
+      }
+      final fast = int.parse(_value(t, 'reps'));
+      await g.up();
+      await t.pump();
+      expect(slow, lessThan(15));
+      // 10 tik × 5 adım.
+      expect(fast - slow, greaterThanOrEqualTo(40));
+    });
+  });
+
   group('Seti tamamla', () {
     testWidgets('set yazılır, titreşim, kanca; Geri al seti siler', (t) async {
       final ctx = await _pump(t);

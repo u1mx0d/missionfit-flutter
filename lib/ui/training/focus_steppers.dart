@@ -4,15 +4,18 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../domain/format.dart';
 import '../../domain/units.dart';
+import '../../domain/value_input.dart';
 import '../../domain/weight_step.dart';
 import '../components/dot_grid.dart';
 import '../theme/mf_theme.dart';
+import 'value_entry_sheet.dart';
 
 export '../../domain/format.dart' show formatAmount, formatSeconds;
 export '../../domain/weight_step.dart' show shownWeight;
 
 /// Odak modunun değer girişi: 60 dp –/+ düğmesi (basılı tutunca hızlanır), değer satırı,
-/// süre alanı (kronometreli) ve adım kuralları. Klavye hiç açılmaz.
+/// süre alanı (kronometreli) ve adım kuralları. Klavye yalnızca kullanıcı değere dokunursa
+/// açılır (isteğe bağlı kısayol, bkz. `value_entry_sheet.dart`); birincil denetim –/+.
 
 bool _mono(MfTheme t) => t.family == ThemeFamily.mono;
 
@@ -40,12 +43,25 @@ class _RepeatButtonState extends State<RepeatButton> {
   int _repeats = 0;
   bool _pressed = false;
 
+  /// Basılı tutmanın tekrar başladığından beri geçen süresi (tiklerin toplamı).
+  Duration _held = Duration.zero;
+
+  /// Basılı tutma ~1,5 sn'yi geçince her tikte bu kadar adım atılır.
+  static const fastMultiplier = 5;
+  static const _fastAfter = Duration(milliseconds: 1000);
+
   void _schedule() {
-    // İlk birkaç adım yavaş, sonra hızlı: kısa düzeltme de uzun yol da rahat.
+    // İlk birkaç adım yavaş, sonra hızlı; 1,5 sn sonra her tik 5 adım: kısa düzeltme de
+    // uzun yol da rahat.
     final delay = Duration(milliseconds: _repeats < 6 ? 150 : 60);
     _timer = Timer(delay, () {
       if (!mounted || widget.onStep == null) return _stop();
-      widget.onStep!();
+      _held += delay;
+      // Uzun basma ~0,5 sn'de tanınır; tekrar ~1 sn daha sürünce hızlanır (toplam ~1,5 sn).
+      final n = _held >= _fastAfter ? fastMultiplier : 1;
+      for (var i = 0; i < n; i++) {
+        widget.onStep!();
+      }
       _repeats++;
       _schedule();
     });
@@ -55,6 +71,7 @@ class _RepeatButtonState extends State<RepeatButton> {
     _timer?.cancel();
     _timer = null;
     _repeats = 0;
+    _held = Duration.zero;
     if (mounted && _pressed) setState(() => _pressed = false);
   }
 
@@ -127,6 +144,7 @@ class ValueStepper extends StatelessWidget {
     required this.unit,
     required this.noun,
     required this.onStep,
+    this.onValueTap,
     super.key,
   });
 
@@ -140,11 +158,15 @@ class ValueStepper extends StatelessWidget {
   /// null: –/+ pasif (ör. kronometre çalışırken).
   final void Function(int direction)? onStep;
 
+  /// Değere dokununca yazarak giriş (isteğe bağlı). null ise değer dokunulmaz.
+  final VoidCallback? onValueTap;
+
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
     final mono = _mono(t);
     final step = onStep;
+    final tap = onValueTap;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -157,27 +179,38 @@ class ValueStepper extends StatelessWidget {
           Expanded(
             child: Semantics(
               label: '${valueText ?? 'boş'} $unit',
+              button: tap != null,
+              hint: tap == null ? null : 'Değer girmek için dokun',
+              onTap: tap,
               excludeSemantics: true,
-              child: Column(
-                children: [
-                  Text(
-                    valueText ?? '–',
-                    key: valueKey,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: t.numberFont,
-                      fontSize: 44,
-                      height: 1.05,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: mono ? 0 : -1.2,
-                      color: valueText == null ? t.textMuted : t.text,
-                    ),
+              child: InkWell(
+                onTap: tap,
+                excludeFromSemantics: true,
+                borderRadius: BorderRadius.circular(12),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Column(
+                    children: [
+                      Text(
+                        valueText ?? '–',
+                        key: valueKey,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: t.numberFont,
+                          fontSize: 44,
+                          height: 1.05,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: mono ? 0 : -1.2,
+                          color: valueText == null ? t.textMuted : t.text,
+                        ),
+                      ),
+                      Text(
+                        unit.toUpperCase(),
+                        style: TextStyle(fontSize: 11, letterSpacing: 1.6, color: t.textMuted),
+                      ),
+                    ],
                   ),
-                  Text(
-                    unit.toUpperCase(),
-                    style: TextStyle(fontSize: 11, letterSpacing: 1.6, color: t.textMuted),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -251,6 +284,18 @@ class _DurationFieldState extends State<DurationField> {
     widget.onChanged((cur + dir * 5).clamp(5, 86400));
   }
 
+  Future<void> _type() async {
+    final s = await showValueEntry<int>(
+      context,
+      title: 'Süre',
+      label: 'Süre (dk:sn)',
+      initial: widget.seconds == null ? '' : formatSeconds(widget.seconds!),
+      parse: parseDurationInput,
+      clock: true,
+    );
+    if (s != null && mounted) widget.onChanged(s);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
@@ -264,6 +309,7 @@ class _DurationFieldState extends State<DurationField> {
           unit: 'süre',
           noun: 'süreyi',
           onStep: running ? null : _step,
+          onValueTap: running ? null : _type,
         ),
         SizedBox(
           height: 48,

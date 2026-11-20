@@ -10,6 +10,9 @@
 // Seçim: uSelected[id] = 1 seçili bölge. uSelecting = 1 iken seçili bölgeler seviye 3 gibi
 // tam vurguda, diğerleri ~%70 parlaklıkta; seçili bölgenin kenarına ince çizgi (Mono'da kenar
 // noktaları büyür). uPulse 0–1: kenarın yavaş nabzı (azaltılmış harekette sabit 1).
+// uLight = 1 açık tema: Canlı'da açık taş, gölgeler uRim'e doğru yumuşak gri; siluet uRim
+// renginde ince kenar ve hafif gölgeyle zeminden ayrılır (≥ 3:1). Mono'da boş noktalar
+// basılı nokta-matris gibi orta gri (uOff), kabartma nokta boyutuyla.
 #version 460 core
 
 #include <flutter/runtime_effect.glsl>
@@ -27,6 +30,8 @@ uniform float uLevels[15];
 uniform float uSelected[15];
 uniform float uSelecting;
 uniform float uPulse;
+uniform float uLight;
+uniform vec4 uRim;
 
 uniform sampler2D uShade;
 uniform sampler2D uIds;
@@ -108,7 +113,7 @@ vec4 dots(vec2 p) {
   } else {
     r = uPitch * (0.06 + 0.26 * l);
     col = uOff.rgb;
-    a = mix(uOffFloor, 1.0, 0.12 + 0.78 * l);
+    a = uLight > 0.5 ? mix(uOffFloor, 1.0, l) : mix(uOffFloor, 1.0, 0.12 + 0.78 * l);
   }
   if (sel > 0.5) {
     // Seçili: tam boy; kenar noktaları nabızla biraz daha büyük ve tam opak.
@@ -137,8 +142,16 @@ vec4 glow(vec2 p) {
   float id = regionId(uv);
   float t = levelK(id);
 
-  vec3 stone = uBase.rgb * lum;
-  vec3 lit = uAccent.rgb * (0.12 + 1.05 * pow(lum, 1.6)) * (0.8 + 0.25 * t);
+  vec3 stone;
+  vec3 lit;
+  if (uLight > 0.5) {
+    // Açık taş: ışık tabana, gölge kenar grisine doğru; koyu bir figüre dönmez.
+    stone = mix(uRim.rgb, uBase.rgb, pow(clamp(lum * 1.08, 0.0, 1.0), 1.6));
+    lit = mix(uAccent.rgb * 0.55, mix(uAccent.rgb, vec3(1.0), 0.18), pow(lum, 1.4)) * (0.85 + 0.15 * t);
+  } else {
+    stone = uBase.rgb * lum;
+    lit = uAccent.rgb * (0.12 + 1.05 * pow(lum, 1.6)) * (0.8 + 0.25 * t);
+  }
   float m = min(1.0, t * 1.6);
   vec3 col = clamp(mix(stone, lit, m), 0.0, 1.0) * dimOf(id);
 
@@ -166,7 +179,28 @@ vec4 glow(vec2 p) {
       wsum += w;
     }
   }
-  float h = sum / wsum * 0.35;
+  float h = sum / wsum * (uLight > 0.5 ? 0.5 : 0.35);
+
+  if (uLight > 0.5) {
+    // Siluet kenarı: ~1,5 px içerideki komşulardan biri boşsa kenar grisi.
+    vec2 q = vec2(1.5) / uSize;
+    float inner = texture(uShade, uv + vec2(q.x, 0.0)).b * texture(uShade, uv - vec2(q.x, 0.0)).b *
+        texture(uShade, uv + vec2(0.0, q.y)).b * texture(uShade, uv - vec2(0.0, q.y)).b;
+    float rim = a * (1.0 - smoothstep(0.3, 0.9, inner));
+    col = mix(col, uRim.rgb * dimOf(id), rim);
+    // Hafif gölge: figürün çevresine sağ-alta kayık yumuşak koyuluk (açık zeminde ayrışma).
+    vec2 sh = uv - vec2(1.5, 2.5) / uSize;
+    float shadow = 0.0;
+    for (int j = 0; j < 8; j++) {
+      float ang = float(j) * 0.785398;
+      shadow += texture(uShade, sh + vec2(cos(ang), sin(ang)) * 3.0 / uSize).b;
+    }
+    shadow = shadow / 8.0 * 0.10 * (1.0 - a);
+    // Önce gölge (siyah), üstüne ışıma, en üstte figür.
+    float alpha = clamp(a + (h + shadow) * (1.0 - a), 0.0, 1.0);
+    vec3 rgb = min(col * a + uAccent.rgb * h * (1.0 - a), vec3(alpha));
+    return vec4(rgb, alpha);
+  }
 
   float alpha = clamp(a + h * (1.0 - a), 0.0, 1.0);
   vec3 rgb = min(col * a + uAccent.rgb * h, vec3(alpha));

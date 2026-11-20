@@ -4,11 +4,13 @@ import 'package:material_ui/material_ui.dart';
 import '../../app/workout_providers.dart';
 import '../../domain/active_workout.dart';
 import '../../domain/units.dart';
+import '../../domain/value_input.dart';
 import '../../domain/weight_step.dart';
 import '../components/dot_grid.dart';
 import '../components/mf_button.dart';
 import 'focus_rail.dart';
 import 'focus_steppers.dart';
+import 'value_entry_sheet.dart';
 
 /// Set düzenleme sayfasının sonucu.
 sealed class SetEdit {
@@ -140,6 +142,17 @@ class _SetEditorState extends State<_SetEditor> {
                 onStep: (d) => setState(
                   () => _shown = nextWeight(_shown, d, widget.plan.equipment, widget.unit),
                 ),
+                onValueTap: () async {
+                  final v = await showValueEntry<double>(
+                    context,
+                    title: 'Ağırlık',
+                    label: 'Ağırlık (${widget.unit.name})',
+                    initial: _shown == null ? '' : formatAmount(_shown!),
+                    parse: (s) => parseWeightInput(s, widget.unit),
+                    decimal: true,
+                  );
+                  if (v != null && mounted) setState(() => _shown = v);
+                },
               ),
             if (_duration)
               DurationField(
@@ -155,6 +168,16 @@ class _SetEditorState extends State<_SetEditor> {
                 unit: 'tekrar',
                 noun: 'tekrarı',
                 onStep: (d) => setState(() => _reps = nextReps(_reps, d)),
+                onValueTap: () async {
+                  final v = await showValueEntry<int>(
+                    context,
+                    title: 'Tekrar',
+                    label: 'Tekrar sayısı',
+                    initial: _reps?.toString() ?? '',
+                    parse: parseRepsInput,
+                  );
+                  if (v != null && mounted) setState(() => _reps = v);
+                },
               ),
             const SizedBox(height: 16),
             MfButton(label: 'Kaydet', onPressed: _valid ? _save : null),
