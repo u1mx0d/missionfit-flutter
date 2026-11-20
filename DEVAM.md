@@ -78,7 +78,7 @@ Modüller aynı kalıyor:
 
 ## 2026-11-19 akşam: Aşama 2a uygulaması sürüyor (KALDIĞIN YER)
 - Spec: `docs/superpowers/specs/2026-11-19-asama-2a-antrenman-design.md` (onaylı). Plan: `docs/superpowers/plans/2026-11-19-asama-2a-antrenman.md` (11 görev, subagent-driven).
-- **İlerleme defteri (önce bunu oku):** `.superpowers/sdd/2026-11-19-asama-2a-antrenman/progress.md`. Tamam: Görev 1, 2, 3, 4, 7. Görev 5 (3B maket) görseli kullanıcı ONAYLADI; betik düzeltmesi (fix round 2) ve Görev 6 (shader bileşeni) incelemesi sürüyordu. Sırada: 8, 9, 10, 11.
+- **İlerleme defteri (önce bunu oku):** `.superpowers/sdd/2026-11-19-asama-2a-antrenman/progress.md`. 2026-11-20: Görev 1-10, son inceleme düzeltmeleri, Görev 12 (kas vurgusu + set sayısı) ve Görev 13 (açık temada açık maket + değere dokunarak yazma) tamam ve push'landı (son `c7f30a1`). **Kalan: Görev 11, kullanıcının telefonda denemesi** (APK `c7f30a1` kurulu). Geri bildirim gelirse yeni görev (14…) olarak deftere yazılır.
 - Sıra kuralı: Görev 9 (dinlenme) ve 8 (sekme) maketten sonra; aynı anda tek uygulayıcı ajan.
 - Push: kullanıcı onay verdi. Her görevin incelemesi temiz çıkınca controller push'lar (alt ajanların push'u izin denetimine takılıyor).
 - Blender 5.2.4 LTS taşınabilir: `~/.local/opt/blender/blender` (pacman veritabanı eski, `sudo pacman -Syu` kullanıcıya kaldı). MPFB eklentisi kurulu.
