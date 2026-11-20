@@ -9,6 +9,7 @@ Seçenekler:
   --height 720         kare yüksekliği (px); genişlik oranla hesaplanır
   --samples 48         Cycles örnek sayısı (denoiser açık)
   --debug DIR          bölge tablosu verisini (npz) ve .blend dosyasını DIR altına yaz
+  --device auto        Cycles aygıtı: auto | cpu | optix | cuda (seçilen aygıt yazdırılır)
 
 Çıktılar (--out altında):
   shade_NNN.webp  gri tonlu ışıklı görüntü, şeffaf arka plan
@@ -63,6 +64,7 @@ def parse_args():
     p.add_argument("--regions", default=os.path.join(HERE, "regions.json"))
     p.add_argument("--debug", default="")
     p.add_argument("--no-shade", action="store_true")
+    p.add_argument("--device", default="auto", choices=["auto", "cpu", "optix", "cuda"])
     return p.parse_args(argv)
 
 
@@ -492,29 +494,39 @@ def setup_scene(h, region, cfg, height):
     return piv, stone_mats, id_mats, width
 
 
-def use_cycles(samples, look, exposure):
+def use_cycles(samples, look, exposure, device):
+    """device: auto | cpu | optix | cuda. auto = OPTIX, yoksa CUDA, yoksa CPU.
+    Seçilen aygıt yazdırılır. Tohum sabittir; yine de ışıklı kareler CPU/GPU ve
+    denoiser sürümleri arasında yalnızca yaklaşık olarak aynı çıkar."""
     sc = bpy.context.scene
     sc.render.engine = 'CYCLES'
     sc.cycles.samples = samples
+    sc.cycles.seed = 0
+    sc.cycles.use_animated_seed = False
     sc.cycles.use_adaptive_sampling = True
     sc.cycles.use_denoising = True
     sc.cycles.denoiser = 'OPENIMAGEDENOISE'
     sc.cycles.max_bounces = 4
-    try:
-        prefs = bpy.context.preferences.addons['cycles'].preferences
-        for kind in ('OPTIX', 'CUDA'):
-            try:
-                prefs.compute_device_type = kind
-                prefs.get_devices()
-                if any(dv.type == kind for dv in prefs.devices):
-                    for dv in prefs.devices:
-                        dv.use = dv.type == kind
-                    sc.cycles.device = 'GPU'
-                    break
-            except TypeError:
-                continue
-    except KeyError:
-        pass
+    sc.cycles.device = 'CPU'
+    chosen = "CPU"
+    kinds = {"auto": ("OPTIX", "CUDA"), "optix": ("OPTIX",), "cuda": ("CUDA",), "cpu": ()}[device]
+    prefs = bpy.context.preferences.addons['cycles'].preferences
+    for kind in kinds:
+        try:
+            prefs.compute_device_type = kind
+        except TypeError:
+            continue
+        prefs.get_devices()
+        if any(dv.type == kind for dv in prefs.devices):
+            for dv in prefs.devices:
+                dv.use = dv.type == kind
+            sc.cycles.device = 'GPU'
+            chosen = kind
+            break
+    if device != "auto" and chosen.lower() != device:
+        raise RuntimeError("İstenen Cycles aygıtı yok: " + device)
+    print("BODY_MAP_CYCLES_DEVICE", chosen,
+          [dv.name for dv in prefs.devices if dv.use] if chosen != "CPU" else "")
     sc.view_settings.view_transform = 'AgX'
     sc.view_settings.look = look
     sc.view_settings.exposure = exposure
@@ -628,7 +640,7 @@ def main():
     tmp = tmp_dir.name
 
     if not args.no_shade:
-        use_cycles(args.samples, cfg["render"]["look"], cfg["render"]["exposure"])
+        use_cycles(args.samples, cfg["render"]["look"], cfg["render"]["exposure"], args.device)
         for f in frames:
             piv.rotation_euler.z = -math.radians(f * step)
             sc.render.filepath = os.path.join(tmp, f"shade_{f:03d}.png")

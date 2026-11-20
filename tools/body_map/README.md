@@ -6,8 +6,8 @@
 
 | Ne | Sürüm | Kaynak | Lisans |
 |---|---|---|---|
-| Blender | 5.2.4 LTS (portable, `~/.local/opt/blender/blender`) | blender.org | GPL (yalnızca araç) |
-| MPFB eklentisi | 2.0.18 (build 20261010) | extensions.blender.org, `mpfb` | Kod GPL-3.0; çıktı kullanıcıya ait |
+| Blender | 5.2.4 LTS (portable, `~/.local/opt/blender/blender`) | https://download.blender.org/release/Blender5.2/blender-5.2.4-linux-x64.tar.xz | GPL (yalnızca araç) |
+| MPFB eklentisi | 2.0.18 (build 20261010) | https://extensions.blender.org/add-ons/mpfb/ (depo: `https://extensions.blender.org/api/v1/extensions/`, Blender'daki `blender_org`) | Kod GPL-3.0; çıktı kullanıcıya ait |
 | Temel insan ağı `base.obj` (hm08) | MPFB 2.0.18 içinde | MakeHuman | CC0 ("explicitly released as CC0 in september 2020") |
 | Hedefler (macrodetails, torso, arms, legs, stomach) | MPFB 2.0.18 içinde | MakeHuman | CC0 |
 | `default` iskelet ve ağırlıkları | MPFB 2.0.18 içinde | MakeHuman | CC0 |
@@ -16,6 +16,16 @@ Ayrı asset paketi (cilt, saç, giysi) **gerekmez**: model nötr gri heykel malz
 çizilir, göz, kaş ve saç eklenmez. Uygulamadaki atıf: "MakeHuman / MPFB (CC0)".
 
 ## Kurulum
+
+Blender 5.2.4 Linux x64 arşivi:
+
+```
+https://download.blender.org/release/Blender5.2/blender-5.2.4-linux-x64.tar.xz
+sha256  2fd14c50987426897ba60237ee996edf2b4151f4b1a72a460ca20be58c1d2d86
+```
+
+(Özet, resmî `https://download.blender.org/release/Blender5.2/blender-5.2.4.sha256`
+dosyasından alınmıştır.) Arşiv `~/.local/opt/blender` altına açılır; sudo gerekmez.
 
 ```sh
 B=~/.local/opt/blender/blender
@@ -30,7 +40,23 @@ $B --online-mode --command extension install --enable mpfb
 python3 tools/body_map/verify.py assets/body_map
 ```
 
+`verify.py` manifesti (anahtarlar, atıf, 14 bölge sırası), boyutu, kimlik değerlerini,
+tekil pikselleri (4 komşusu da farklı olan piksel; kenar yumuşatması sızıntısını
+yakalar), boşluk ⇔ alfa eşleşmesini (alfa < 0,5, 1 px kenar payı) ve boş
+piksellerdeki soluk alfayı denetler.
+
 Not: `--factory-startup` kullanmayın; eklentiler o kipte yüklenmez.
+
+### Yeniden üretilebilirlik
+
+- **Kimlik haritaları birebir aynı çıkar.** Geometri ve bölge kuralları belirlenimcidir;
+  Workbench AA'sız çizer ve değerler 17'nin katına yuvarlanır.
+- **Işıklı kareler yalnızca yaklaşık olarak aynı çıkar.** Cycles tohumu sabittir
+  (`seed = 0`, `use_animated_seed = False`), ama sonuç aygıta (CPU / OptiX / CUDA),
+  sürücüye ve OpenImageDenoise sürümüne göre gürültü düzeyinde değişebilir.
+  `--device auto|cpu|optix|cuda` aygıtı sabitler; seçilen aygıt
+  `BODY_MAP_CYCLES_DEVICE` satırıyla yazdırılır. Depodaki kareler OPTIX ile, NVIDIA
+  GeForce RTX 4050 Laptop GPU üzerinde üretildi.
 Deneme için `--only 0,18,36` (manifest yazılmaz), `--debug DIR` (yüz verisi ve .blend).
 
 Önizleme (Pillow + numpy):
@@ -74,7 +100,8 @@ python3 tools/body_map/preview.py --assets assets/body_map --mode overlay|mono|g
    ışıklar sabit, model döner. Çıktı WebP (kalite 82), şeffaf arka plan.
 7. **Kimlik haritası:** Workbench, düz ışık, malzeme rengi, AA kapalı, dither 0,
    Standard görünüm. Renkler sayısal olarak 17'nin katına yuvarlanır, alfa < 0.5 = 255.
-   8 bit gri PNG olarak yazılır (çözülünce R = G = B, kırmızı kanal = kimlik × 17).
+   **8 bit gri tonlu PNG** (renk tipi 0) olarak yazılır: çözülünce R = G = B = kimlik × 17,
+   yani kırmızı kanal = kimlik × 17 (0 cilt, 17…238 bölgeler, 255 boş).
 
 ## Kare düzeni
 
