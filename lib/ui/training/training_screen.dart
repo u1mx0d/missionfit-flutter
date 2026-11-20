@@ -40,8 +40,12 @@ class TrainingScreen extends ConsumerStatefulWidget {
 }
 
 class _TrainingScreenState extends ConsumerState<TrainingScreen> {
-  /// Açık bölge (liste satırı ya da maket dokunuşuyla).
+  /// Açık (ve maket üzerinde seçili) bölge: liste satırı ya da maket dokunuşuyla.
   BodyRegion? _open;
+
+  /// Bölge içinde tek seçili kas (maket dokunuşu ya da açık bölgedeki kas satırı);
+  /// null iken bölgenin bütün kasları seçilidir.
+  String? _muscle;
   bool _busy = false;
 
   Future<void> _start(
@@ -64,11 +68,50 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
     if (r == StaleOutcome.fresh && mounted) context.go('/antrenman/odak');
   }
 
-  void _toggle(BodyRegion r) => setState(() => _open = _open == r ? null : r);
+  void _clearSelection() => setState(() {
+    _open = null;
+    _muscle = null;
+  });
 
+  /// Bölge satırı: açar ve bölgenin bütün kaslarını seçer; açık satıra dokunuş kapatır.
+  void _toggle(BodyRegion r) {
+    if (_open == r) return _clearSelection();
+    setState(() {
+      _open = r;
+      _muscle = null;
+    });
+  }
+
+  /// Maketteki kas: bölgesini açar ve yalnız o kası seçer; seçili kasa dokunuş kapatır.
   void _onMuscleTap(String slug, List<MuscleGroupOption> groups) {
+    if (_muscle == slug) return _clearSelection();
     final g = groups.where((x) => x.slug == slug).firstOrNull;
-    if (g != null) setState(() => _open = g.region);
+    if (g == null) return;
+    setState(() {
+      _open = g.region;
+      _muscle = slug;
+    });
+  }
+
+  /// Açık bölgedeki kas satırı: o kası seçer; seçili kasa dokunuş bölgenin tamamına döner.
+  void _onDetailMuscleTap(String slug) => setState(() => _muscle = _muscle == slug ? null : slug);
+
+  /// Maket üzerinde seçili kaslar ve ekran okuyucudaki adı.
+  (Set<String>, String?) _selection(List<MuscleGroupOption> groups) {
+    final open = _open;
+    if (open == null) return (const {}, null);
+    final muscle = _muscle;
+    if (muscle != null) {
+      final name = groups.where((g) => g.slug == muscle).firstOrNull?.nameTr;
+      return ({muscle}, name);
+    }
+    return (
+      {
+        for (final g in groups)
+          if (g.region == open && bodyMapMuscles.contains(g.slug)) g.slug,
+      },
+      regionTitle(open),
+    );
   }
 
   @override
@@ -86,6 +129,8 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
     final weekStartsOn =
         ref.watch(profileProvider.select((p) => p.value?.weekStartsOn)) ?? WeekStartsOn.monday;
     final window = weekWindowForDate(today, weekStartsOn);
+    // Hafta yüklenmeden liste satırları açılmaz; seçim de maket üzerinde gösterilmez.
+    final (selected, selectedName) = ready ? _selection(groups) : (const <String>{}, null);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -119,6 +164,9 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
                     child: BodyMap(
                       levels: week.levels,
                       onRegionTap: (slug) => _onMuscleTap(slug, groups),
+                      onBackgroundTap: _open == null ? null : _clearSelection,
+                      selectedRegions: selected,
+                      selectedName: selectedName,
                       semanticLabel: 'Bu hafta çalışılan kaslar, 3 boyutlu maket',
                     ),
                   ),
@@ -136,8 +184,10 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
                   week: ready ? week : null,
                   groups: groups,
                   open: _open,
+                  selectedMuscle: _muscle,
                   today: today,
                   onToggle: _toggle,
+                  onMuscleTap: _onDetailMuscleTap,
                 ),
                 const SizedBox(height: 16),
                 FocusCta(
@@ -302,16 +352,20 @@ class _RegionList extends StatelessWidget {
     required this.week,
     required this.groups,
     required this.open,
+    required this.selectedMuscle,
     required this.today,
     required this.onToggle,
+    required this.onMuscleTap,
   });
 
   /// null: yükleniyor (satırlar yerinde, sayılar "–", dokunulmaz).
   final WeeklyBodyMap? week;
   final List<MuscleGroupOption> groups;
   final BodyRegion? open;
+  final String? selectedMuscle;
   final LocalDate today;
   final ValueChanged<BodyRegion> onToggle;
+  final ValueChanged<String> onMuscleTap;
 
   double? _sets(BodyRegion r) => week == null
       ? null
@@ -342,6 +396,8 @@ class _RegionList extends StatelessWidget {
             ],
             week: week!,
             today: today,
+            selected: selectedMuscle,
+            onTap: onMuscleTap,
           );
     return LayoutBuilder(
       builder: (context, c) {
@@ -449,10 +505,21 @@ class _RegionRow extends StatelessWidget {
 }
 
 class _RegionDetail extends StatelessWidget {
-  const _RegionDetail({required this.muscles, required this.week, required this.today, super.key});
+  const _RegionDetail({
+    required this.muscles,
+    required this.week,
+    required this.today,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
   final List<MuscleGroupOption> muscles;
   final WeeklyBodyMap week;
   final LocalDate today;
+
+  /// Maket üzerinde tek başına seçili kas (null: bölgenin tamamı).
+  final String? selected;
+  final ValueChanged<String> onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -469,7 +536,7 @@ class _RegionDetail extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: MfCard(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -477,34 +544,55 @@ class _RegionDetail extends StatelessWidget {
               liveRegion: true,
               child: Text(lastText, style: TextStyle(color: t.text, fontSize: 14)),
             ),
-            const SizedBox(height: 6),
-            for (final m in muscles)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        m.nameTr,
-                        style: TextStyle(
-                          color: (week.muscleSets[m.slug] ?? 0) > 0 ? t.text : t.textMuted,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      formatAmount(week.muscleSets[m.slug] ?? 0),
-                      style: TextStyle(
-                        color: (week.muscleSets[m.slug] ?? 0) > 0 ? t.text : t.textMuted,
-                        fontFamily: mono ? t.numberFont : null,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 2),
+            for (final m in muscles) _muscleRow(t, mono, m),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _muscleRow(MfTheme t, bool mono, MuscleGroupOption m) {
+    final sets = week.muscleSets[m.slug] ?? 0;
+    final on = selected == m.slug;
+    final color = sets > 0 || on ? t.text : t.textMuted;
+    final weight = on ? FontWeight.w700 : FontWeight.w400;
+    return Semantics(
+      button: true,
+      selected: on,
+      label: '${m.nameTr}, ${formatAmount(sets)} set. Maket üzerinde göster',
+      excludeSemantics: true,
+      child: InkWell(
+        key: Key('muscle-${m.slug}'),
+        onTap: () => onTap(m.slug),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Row(
+            children: [
+              // Seçim yalnız renkle değil: işaret ve kalın yazı.
+              Icon(
+                on ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                size: 16,
+                color: on ? t.accent : t.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  m.nameTr,
+                  style: TextStyle(color: color, fontSize: 14, fontWeight: weight),
                 ),
               ),
-          ],
+              Text(
+                formatAmount(sets),
+                style: TextStyle(
+                  color: color,
+                  fontFamily: mono ? t.numberFont : null,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

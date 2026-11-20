@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -424,12 +425,16 @@ class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingOb
                 done: done,
                 target: p.targetSets,
                 onEdit: (s) => _edit(w, p, s, done.indexOf(s) + 1),
-                onAddSet: _canAddSet(w, id) ? () => _guard(() => _ctl.addTargetSet(id)) : null,
               ),
             ),
-            Text(
-              mono ? turkishUpper(setCaption) : setCaption,
-              style: TextStyle(color: t.textMuted, fontSize: 12, letterSpacing: mono ? 1.4 : 0),
+            SetCountStepper(
+              caption: setCaption,
+              onRemove: p.targetSets > math.max(1, done.length)
+                  ? () => _guard(() => _ctl.removeTargetSet(id))
+                  : null,
+              onAdd: p.targetSets < maxSetIndex && _canAddSet(w, id)
+                  ? () => _guard(() => _ctl.addTargetSet(id))
+                  : null,
             ),
           ],
         ),

@@ -281,6 +281,46 @@ void main() {
     expect(again!.plan.single.targetSets, 4);
   });
 
+  test('removeTargetSet: 2 set yapılmışken 3→2 hareketi bitirir, sıradaki ilerler', () async {
+    await c.read(activeWorkoutControllerProvider.future);
+    await ctl().start(const [bench, dips]);
+    await ctl().completeSet(const SetValues(weightKg: 60, reps: 8));
+    await ctl().completeSet(const SetValues(weightKg: 60, reps: 8));
+    expect(state()!.nextUp()!.exerciseId, 'bench');
+    await ctl().removeTargetSet('bench');
+    expect(state()!.plan.first.targetSets, 2);
+    expect(state()!.nextUp()!.exerciseId, 'dips');
+    // Kalıcı.
+    c.invalidate(activeWorkoutControllerProvider);
+    final again = await c.read(activeWorkoutControllerProvider.future);
+    expect(again!.plan.first.targetSets, 2);
+  });
+
+  test('removeTargetSet yapılan set sayısının (ve 1\'in) altına inmez', () async {
+    await c.read(activeWorkoutControllerProvider.future);
+    await ctl().start(const [bench, dips]);
+    await ctl().completeSet(const SetValues(weightKg: 60, reps: 8));
+    await ctl().completeSet(const SetValues(weightKg: 60, reps: 8));
+    await ctl().removeTargetSet('bench');
+    await ctl().removeTargetSet('bench');
+    expect(state()!.plan.first.targetSets, 2);
+    for (var i = 0; i < 4; i++) {
+      await ctl().removeTargetSet('dips');
+    }
+    expect(state()!.plan.last.targetSets, 1);
+  });
+
+  test('addTargetSet her an artırır (hedef dolmadan da), 50\'de durur', () async {
+    await c.read(activeWorkoutControllerProvider.future);
+    await ctl().start(const [bench]);
+    await ctl().addTargetSet('bench');
+    expect(state()!.plan.single.targetSets, 4);
+    for (var i = 0; i < 60; i++) {
+      await ctl().addTargetSet('bench');
+    }
+    expect(state()!.plan.single.targetSets, maxSetIndex);
+  });
+
   test('finish set varsa Saved döner, durum null olur', () async {
     await c.read(activeWorkoutControllerProvider.future);
     await ctl().start(const [bench]);

@@ -1,5 +1,7 @@
 /// 3B kaslı atlet maketi: 72 karelik dönüş, tema stiline göre shader ile boyanır.
 /// Sürükleyince döner, ilk gösterimde bir tur atar, dokununca bölgeyi bildirir.
+/// Seçili bölgeler tam vurguda yanar (kenarı ince çizgiyle), diğerleri sönükleşir; seçili
+/// bölge o an görünmüyorsa maket en iyi göründüğü kareye döner.
 library;
 
 import 'dart:ui' as ui;
@@ -25,11 +27,18 @@ const double bodyMapDotPitch = 3.0;
 /// Sürüklemede piksel başına dönüş (derece).
 const double _degPerPx = 0.6;
 const Duration _introDuration = Duration(milliseconds: 2400);
+const Duration _revealDuration = Duration(milliseconds: 500);
+
+/// Seçili bölge kenarının nabız yarı süresi (tam tur 1,2 sn).
+const Duration _pulseHalf = Duration(milliseconds: 600);
 
 class BodyMap extends ConsumerStatefulWidget {
   const BodyMap({
     required this.levels,
     this.onRegionTap,
+    this.onBackgroundTap,
+    this.selectedRegions = const {},
+    this.selectedName,
     this.semanticLabel = 'Kas haritası',
     super.key,
   });
@@ -37,15 +46,34 @@ class BodyMap extends ConsumerStatefulWidget {
   /// Kas slug'ı → seviye (0–3).
   final Map<String, int> levels;
   final ValueChanged<String>? onRegionTap;
+
+  /// Kas olmayan yere (cilt ya da boşluk) dokunuş.
+  final VoidCallback? onBackgroundTap;
+
+  /// Seçili kas slug'ları (bir kas ya da bir bölgenin bütün kasları).
+  final Set<String> selectedRegions;
+
+  /// Seçimin ekran okuyucudaki adı ("Ön kol"); değerde "Seçili: Ön kol" olarak okunur.
+  final String? selectedName;
   final String semanticLabel;
 
   @override
   ConsumerState<BodyMap> createState() => BodyMapState();
 }
 
-class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderStateMixin {
+class BodyMapState extends ConsumerState<BodyMap> with TickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController.unbounded(vsync: this)
     ..addListener(_onTick);
+
+  /// Seçili bölge kenarının nabzı (0–1); yalnızca seçim varken ve shader'la çizilirken döner.
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: _pulseHalf,
+    value: 1,
+  );
+
+  /// Görünürlüğü en son denetlenen seçim (aynı seçim için yeniden döndürülmez).
+  Set<int> _revealed = const {};
   int _frame = 0;
   bool _introStarted = false;
   ui.FragmentShader? _shader;
@@ -110,10 +138,46 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
   void _onTapUp(TapUpDetails d, BodyMapFrames frames, Size size) {
     // Dokunuş da açılış turunu (ve savurmayı) durdurur.
     _ctrl.stop();
-    final cb = widget.onRegionTap;
-    if (cb == null) return;
     final id = frames.regionAt(_frame, d.localPosition, size);
-    if (id >= 1 && id <= bodyMapMuscles.length) cb(bodyMapMuscles[id - 1]);
+    if (id >= 1 && id <= bodyMapMuscles.length) {
+      widget.onRegionTap?.call(bodyMapMuscles[id - 1]);
+    } else {
+      widget.onBackgroundTap?.call();
+    }
+  }
+
+  Set<int> get _selectedIds => {
+    for (final slug in widget.selectedRegions)
+      if (bodyMapRegionId(slug) > 0) bodyMapRegionId(slug),
+  };
+
+  /// Seçim değiştiyse ve seçili bölgeler bu karede (neredeyse) görünmüyorsa en iyi
+  /// göründükleri kareye döner; azaltılmış harekette atlar.
+  void _revealSelection(BodyMapFrames frames) {
+    final ids = _selectedIds;
+    if (setEquals(ids, _revealed)) return;
+    _revealed = ids;
+    if (ids.isEmpty || regionsVisibleIn(frames.regionPixels, _frame, ids)) return;
+    final best = bestFrameFor(frames.regionPixels, ids);
+    final target = angleTowardFrame(_ctrl.value, best, frames: _frameCount);
+    _introStarted = true; // Açılış turu henüz başlamadıysa artık başlamaz.
+    _ctrl.stop();
+    if (_reduceMotion) {
+      _ctrl.value = target;
+    } else {
+      _ctrl.animateTo(target, duration: _revealDuration, curve: Curves.easeInOutCubic);
+    }
+  }
+
+  /// Nabız yalnızca seçim varken, shader'la çizilirken ve hareket azaltılmamışken döner.
+  void _syncPulse({required bool active}) {
+    if (active && !_reduceMotion) {
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else if (_pulse.isAnimating || _pulse.value != 1) {
+      _pulse
+        ..stop()
+        ..value = 1;
+    }
   }
 
   ui.FragmentShader? _shaderFor(ui.FragmentProgram? program) {
@@ -128,6 +192,7 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
   @override
   void dispose() {
     _ctrl.dispose();
+    _pulse.dispose();
     _shader?.dispose();
     super.dispose();
   }
@@ -152,6 +217,13 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
         });
       }
       final shader = _shaderFor(program);
+      final selected = _selectedIds;
+      _syncPulse(active: shader != null && selected.isNotEmpty);
+      if (!setEquals(selected, _revealed)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _revealSelection(frames);
+        });
+      }
       child = LayoutBuilder(
         builder: (context, c) {
           final size = c.biggest;
@@ -167,6 +239,8 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
                     frames: frames,
                     frame: _frame,
                     levels: _levelList(widget.levels),
+                    selected: _selectedList(selected),
+                    pulse: _pulse,
                     colors: _BodyMapColors.of(mf(context)),
                   ),
                 );
@@ -182,13 +256,16 @@ class BodyMapState extends ConsumerState<BodyMap> with SingleTickerProviderState
       );
     }
 
+    final sel = widget.selectedName;
+    String viewValue(double a) =>
+        sel == null ? bodyMapViewName(a) : '${bodyMapViewName(a)}. Seçili: $sel';
     return Semantics(
       label: widget.semanticLabel,
       image: true,
       excludeSemantics: true,
-      value: bodyMapViewName(_shownAngle),
-      increasedValue: frames == null ? null : bodyMapViewName(_shownAngle + 90),
-      decreasedValue: frames == null ? null : bodyMapViewName(_shownAngle - 90),
+      value: viewValue(_shownAngle),
+      increasedValue: frames == null ? null : viewValue(_shownAngle + 90),
+      decreasedValue: frames == null ? null : viewValue(_shownAngle - 90),
       // Sürüklemeye alternatif: ekran okuyucuda artır/azalt 90° döndürür.
       onIncrease: frames == null ? null : () => _rotateBy(90),
       onDecrease: frames == null ? null : () => _rotateBy(-90),
@@ -220,6 +297,9 @@ List<double> _levelList(Map<String, int> levels) {
   });
   return out;
 }
+
+/// 15 elemanlı seçim bayrakları (indeks = bölge kimliği; 1 = seçili).
+List<double> _selectedList(Set<int> ids) => [for (var i = 0; i < 15; i++) ids.contains(i) ? 1 : 0];
 
 @immutable
 class _BodyMapColors {
@@ -264,13 +344,17 @@ class _BodyMapPainter extends CustomPainter {
     required this.frames,
     required this.frame,
     required this.levels,
+    required this.selected,
+    required this.pulse,
     required this.colors,
-  });
+  }) : super(repaint: pulse);
 
   final ui.FragmentShader shader;
   final BodyMapFrames frames;
   final int frame;
   final List<double> levels;
+  final List<double> selected;
+  final Animation<double> pulse;
   final _BodyMapColors colors;
 
   @override
@@ -295,6 +379,9 @@ class _BodyMapPainter extends CustomPainter {
     f(bodyMapDotPitch);
     f(colors.offFloor);
     levels.forEach(f);
+    selected.forEach(f);
+    f(selected.any((x) => x > 0) ? 1 : 0);
+    f(pulse.value);
     shader
       // Aynı paketli doku iki kez bağlanır: ışık bilineer, kimlik en yakın komşu.
       ..setImageSampler(0, frames.images[frame], filterQuality: FilterQuality.low)
@@ -313,5 +400,7 @@ class _BodyMapPainter extends CustomPainter {
       old.frames != frames ||
       old.shader != shader ||
       old.colors != colors ||
-      !listEquals(old.levels, levels);
+      old.pulse != pulse ||
+      !listEquals(old.levels, levels) ||
+      !listEquals(old.selected, selected);
 }

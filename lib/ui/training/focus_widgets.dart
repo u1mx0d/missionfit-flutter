@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/today_provider.dart' show clockProvider;
 import '../../domain/active_workout.dart';
+import '../../domain/turkish_text.dart';
 import '../components/dot_grid.dart';
 import '../theme/mf_theme.dart';
 
@@ -53,27 +54,19 @@ class ExerciseProgress extends StatelessWidget {
 }
 
 /// Set noktaları: biten (dolu, dokununca düzenlenir), şimdiki (çerçeveli), bekleyen.
-/// Hedef dolunca sonda "+ Set" çıkar (50 sete ulaşılınca çıkmaz).
+/// Set sayısı yanındaki [SetCountStepper] ile değişir.
 class SetDots extends StatelessWidget {
-  const SetDots({
-    required this.done,
-    required this.target,
-    required this.onEdit,
-    this.onAddSet,
-    super.key,
-  });
+  const SetDots({required this.done, required this.target, required this.onEdit, super.key});
 
   final List<LoggedSet> done;
   final int target;
   final ValueChanged<LoggedSet> onEdit;
-  final VoidCallback? onAddSet;
 
   @override
   Widget build(BuildContext context) {
     final t = mf(context);
     final mono = _mono(t);
     final total = done.length >= target ? done.length : target;
-    final full = done.length >= target;
 
     Widget dot(int i) {
       final isDone = i < done.length;
@@ -118,22 +111,76 @@ class SetDots extends StatelessWidget {
 
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (var i = 0; i < total; i++) dot(i),
-        if (full && onAddSet != null)
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: TextButton(
-              onPressed: onAddSet,
-              style: TextButton.styleFrom(
-                foregroundColor: t.text,
-                minimumSize: const Size(64, 48),
-                shape: const StadiumBorder(),
-                side: BorderSide(color: t.border),
+      children: [for (var i = 0; i < total; i++) dot(i)],
+    );
+  }
+}
+
+/// "SET 2/3" yazısı ve iki yanında set sayısını azaltan/artıran küçük düğmeler
+/// (dokunma alanı 48 dp). Düğme null ise pasif.
+class SetCountStepper extends StatelessWidget {
+  const SetCountStepper({
+    required this.caption,
+    required this.onRemove,
+    required this.onAdd,
+    super.key,
+  });
+
+  final String caption;
+  final VoidCallback? onRemove;
+  final VoidCallback? onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = mf(context);
+    final mono = _mono(t);
+    Widget button(String glyph, String label, VoidCallback? onTap, Key key) => Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: label,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkResponse(
+        key: key,
+        onTap: onTap,
+        radius: 24,
+        excludeFromSemantics: true,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: onTap == null ? t.border : t.textMuted),
               ),
-              child: const Text('+ Set', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(
+                glyph,
+                style: TextStyle(
+                  color: onTap == null ? t.textMuted : t.text,
+                  fontSize: 18,
+                  height: 1,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
+        ),
+      ),
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button('–', 'set sayısını azalt', onRemove, const Key('set-count-minus')),
+        Text(
+          mono ? turkishUpper(caption) : caption,
+          style: TextStyle(color: t.textMuted, fontSize: 12, letterSpacing: mono ? 1.4 : 0),
+        ),
+        button('+', 'set sayısını artır', onAdd, const Key('set-count-plus')),
       ],
     );
   }

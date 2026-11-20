@@ -99,29 +99,16 @@ class ActiveWorkoutController extends AsyncNotifier<ActiveWorkout?> {
   Future<void> addExercise(PlannedExercise e) =>
       _serial(() async => _savePlan((await _current()).addExercise(e)));
 
-  /// "+ Set": hedefi bir artırır (hedef bir sınır değildir).
-  Future<void> addTargetSet(String exerciseId) => _serial(() async {
+  /// Set sayısı "+": hedefi bir artırır (hedef bir sınır değildir; en çok 50).
+  Future<void> addTargetSet(String exerciseId) => _changeTarget(exerciseId, 1);
+
+  /// Set sayısı "–": hedefi bir azaltır; yapılan set sayısının (ve 1'in) altına inmez.
+  Future<void> removeTargetSet(String exerciseId) => _changeTarget(exerciseId, -1);
+
+  Future<void> _changeTarget(String exerciseId, int delta) => _serial(() async {
     final w = await _current();
-    await _savePlan(
-      ActiveWorkout(
-        sessionId: w.sessionId,
-        startedAt: w.startedAt,
-        sets: w.sets,
-        currentExerciseId: w.currentExerciseId,
-        plan: [
-          for (final p in w.plan)
-            p.exerciseId == exerciseId
-                ? PlannedExercise(
-                    exerciseId: p.exerciseId,
-                    tracking: p.tracking,
-                    equipment: p.equipment,
-                    targetSets: p.targetSets + 1,
-                    restSeconds: p.restSeconds,
-                  )
-                : p,
-        ],
-      ),
-    );
+    final next = w.changeTargetSets(exerciseId, delta);
+    if (next != w) await _savePlan(next);
   });
 
   /// Yazım hata verirse bellekteki durum eskimiş olabilir (ör. yerel benzersizlik ihlali):

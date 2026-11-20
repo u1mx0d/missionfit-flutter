@@ -186,6 +186,26 @@ class ActiveWorkout {
 
   ActiveWorkout select(String exerciseId) => _copy(currentExerciseId: exerciseId);
 
+  /// Hareketin hedef set sayısını [delta] kadar değiştirir; hedef yapılan set sayısının
+  /// (ve 1'in) altına inmez, [maxSetIndex]'i geçmez.
+  ActiveWorkout changeTargetSets(String exerciseId, int delta) {
+    final floor = doneSets(exerciseId) < 1 ? 1 : doneSets(exerciseId);
+    return _copy(
+      plan: [
+        for (final p in plan)
+          p.exerciseId == exerciseId
+              ? PlannedExercise(
+                  exerciseId: p.exerciseId,
+                  tracking: p.tracking,
+                  equipment: p.equipment,
+                  targetSets: (p.targetSets + delta).clamp(floor, maxSetIndex),
+                  restSeconds: p.restSeconds,
+                )
+              : p,
+      ],
+    );
+  }
+
   ActiveWorkout logSet(LoggedSet s) => _copy(sets: [...sets, s]);
 
   ActiveWorkout replaceSet(LoggedSet s) =>

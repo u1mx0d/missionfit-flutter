@@ -343,6 +343,11 @@ Future<void> _scrollTo(WidgetTester t, Finder f) async {
   await t.pumpAndSettle();
 }
 
+Future<void> _scrollUp(WidgetTester t) async {
+  await t.scrollUntilVisible(find.byType(BodyMap), -200, scrollable: find.byType(Scrollable).first);
+  await t.pumpAndSettle();
+}
+
 void main() {
   setUpAll(tzdata.initializeTimeZones);
 
@@ -427,6 +432,84 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('Son çalışma: bugün'), findsOneWidget);
       expect(find.text('Ön bacak'), findsOneWidget);
+    });
+  });
+
+  group('Sekme: maket seçimi', () {
+    BodyMap map(WidgetTester t) => t.widget<BodyMap>(find.byType(BodyMap));
+
+    testWidgets('maketteki kasa dokununca satır açılır ve kas seçilir; tekrar dokunuş kaldırır', (
+      t,
+    ) async {
+      await _pump(t);
+      expect(map(t).selectedRegions, isEmpty);
+      map(t).onRegionTap!('forearms');
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('region-detail-arms')), findsOneWidget);
+      expect(map(t).selectedRegions, {'forearms'});
+      expect(map(t).selectedName, 'Ön kol');
+      map(t).onRegionTap!('forearms');
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('region-detail-arms')), findsNothing);
+      expect(map(t).selectedRegions, isEmpty);
+      expect(map(t).selectedName, isNull);
+    });
+
+    testWidgets('satıra dokununca bölgenin bütün kasları seçilir; tekrar dokunuş kaldırır', (
+      t,
+    ) async {
+      await _pump(t);
+      await t.tap(_row('back'));
+      await t.pumpAndSettle();
+      expect(map(t).selectedRegions, {'traps', 'lats', 'lower_back'});
+      expect(map(t).selectedName, 'Sırt');
+      await t.tap(_row('back'));
+      await t.pumpAndSettle();
+      expect(map(t).selectedRegions, isEmpty);
+    });
+
+    testWidgets('açık bölgedeki kas satırı yalnız o kası seçer, tekrar dokunuş bölgeye döner', (
+      t,
+    ) async {
+      await _pump(t);
+      await t.tap(_row('back'));
+      await t.pumpAndSettle();
+      final lats = find.byKey(const Key('muscle-lats'));
+      await _scrollTo(t, lats);
+      expect(t.getSize(lats).height, greaterThanOrEqualTo(48));
+      await t.tap(lats);
+      await t.pumpAndSettle();
+      await _scrollUp(t); // maket listede yukarıda kalmış olabilir
+      expect(map(t).selectedRegions, {'lats'});
+      expect(map(t).selectedName, 'Kanat');
+      await _scrollTo(t, lats);
+      await t.tap(lats);
+      await t.pumpAndSettle();
+      await _scrollUp(t);
+      expect(map(t).selectedRegions, {'traps', 'lats', 'lower_back'});
+    });
+
+    testWidgets('maketin boş yerine dokunuş seçimi kaldırır', (t) async {
+      await _pump(t);
+      map(t).onRegionTap!('quads');
+      await t.pumpAndSettle();
+      expect(map(t).selectedRegions, {'quads'});
+      map(t).onBackgroundTap!();
+      await t.pumpAndSettle();
+      expect(map(t).selectedRegions, isEmpty);
+      expect(find.byKey(const Key('region-detail-legs')), findsNothing);
+      expect(map(t).onBackgroundTap, isNull);
+    });
+
+    testWidgets('başka kas seçilince seçim ona geçer, bölge değişir', (t) async {
+      await _pump(t);
+      map(t).onRegionTap!('chest');
+      await t.pumpAndSettle();
+      map(t).onRegionTap!('calves');
+      await t.pumpAndSettle();
+      expect(map(t).selectedRegions, {'calves'});
+      expect(find.byKey(const Key('region-detail-legs')), findsOneWidget);
+      expect(find.byKey(const Key('region-detail-chest')), findsNothing);
     });
   });
 

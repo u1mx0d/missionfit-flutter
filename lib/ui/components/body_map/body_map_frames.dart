@@ -5,6 +5,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -15,7 +16,8 @@ const _shaderAsset = 'shaders/body_map.frag';
 
 class BodyMapFrames {
   BodyMapFrames._(
-    this._idNibbles, {
+    this._idNibbles,
+    this.regionPixels, {
     required this.width,
     required this.height,
     required this.stepDegrees,
@@ -34,6 +36,10 @@ class BodyMapFrames {
 
   /// Kare başına piksel başına 4 bit kimlik (0 cilt, 1–14 bölge, 15 boş).
   final List<Uint8List> _idNibbles;
+
+  /// Kare başına bölge piksel sayıları (indeks = kimlik 0–15); paketlerken sayılır.
+  /// Listeden seçilen kasın en iyi göründüğü kareyi bulmak için.
+  final List<Uint32List> regionPixels;
 
   int get frameCount => images.length;
 
@@ -68,18 +74,18 @@ class BodyMapFrames {
       }
     }
 
-    Future<(ui.Image, Uint8List)> frame(int i) async {
+    Future<(ui.Image, Uint8List, Uint32List)> frame(int i) async {
       final n = i.toString().padLeft(3, '0');
       final (shade, id) = await (pixels('$_dir/shade_$n.webp'), pixels('$_dir/id_$n.png')).wait;
       // Piksel paketleme (kare başına ~260 bin piksel) ana isolate'ı kilitlemesin diye
       // ayrı isolate'ta yapılır; ilk açılışta takılma olmaz.
-      final (packed, nibbles) = await _packInIsolate(shade, id, width * height);
+      final (packed, nibbles, counts) = await _packInIsolate(shade, id, width * height);
       final image = await _fromPixels(packed, width, height);
-      return (image, nibbles);
+      return (image, nibbles, counts);
     }
 
     // Sınırlı eşzamanlılık: en çok [loadConcurrency] kare aynı anda.
-    final results = List<(ui.Image, Uint8List)?>.filled(count, null);
+    final results = List<(ui.Image, Uint8List, Uint32List)?>.filled(count, null);
     var next = 0;
     Future<void> worker() async {
       while (next < count) {
@@ -98,6 +104,7 @@ class BodyMapFrames {
     }
     return BodyMapFrames._(
       [for (final r in results) r!.$2],
+      [for (final r in results) r!.$3],
       width: width,
       height: height,
       stepDegrees: step,
@@ -163,16 +170,19 @@ class BodyMapFrames {
   }
 }
 
-/// Işıklı görüntü ve kimlik haritası piksellerinden (düz RGBA) kare dokusunu ve 4 bitlik
-/// kimlik tablosunu üretir. Saf fonksiyon: [Isolate.run] içinde çalışır.
-(Uint8List, Uint8List) packFramePixels(Uint8List shade, Uint8List id, int px) {
+/// Işıklı görüntü ve kimlik haritası piksellerinden (düz RGBA) kare dokusunu, 4 bitlik
+/// kimlik tablosunu ve bölge başına piksel sayılarını (indeks = kimlik) üretir.
+/// Saf fonksiyon: [Isolate.run] içinde çalışır.
+(Uint8List, Uint8List, Uint32List) packFramePixels(Uint8List shade, Uint8List id, int px) {
   final packed = Uint8List(px * 4);
   final nibbles = Uint8List((px + 1) >> 1);
+  final counts = Uint32List(16);
   for (var p = 0; p < px; p++) {
     final o = p * 4;
     // Kırmızı kanal = kimlik × 17; yuvarlayarak böl.
     final rid = (id[o] + 8) ~/ 17;
     nibbles[p >> 1] |= p.isEven ? rid : rid << 4;
+    counts[rid]++;
     // WebP kenarındaki soluk alfa sisi (< 0,5) boş sayılır.
     final a = shade[o + 3] < 128 ? 0 : shade[o + 3];
     packed[o] = shade[o] * a ~/ 255;
@@ -180,12 +190,12 @@ class BodyMapFrames {
     packed[o + 2] = a;
     packed[o + 3] = 255;
   }
-  return (packed, nibbles);
+  return (packed, nibbles, counts);
 }
 
 // Üst düzey: isolate'a gönderilen kapanış yalnızca bu parametreleri taşır (yükleyicinin
 // görüntü listesi gibi gönderilemeyen yerel değişkenlerini değil).
-Future<(Uint8List, Uint8List)> _packInIsolate(Uint8List shade, Uint8List id, int px) =>
+Future<(Uint8List, Uint8List, Uint32List)> _packInIsolate(Uint8List shade, Uint8List id, int px) =>
     Isolate.run(() => packFramePixels(shade, id, px));
 
 /// Dinleyici kalmayınca bu süre sonra kareler bırakılır (sekmeler arası hızlı geçişte

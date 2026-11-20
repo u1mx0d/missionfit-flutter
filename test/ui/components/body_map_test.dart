@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:missionfit/domain/body_map.dart';
 import 'package:missionfit/ui/components/body_map/body_map.dart';
 import 'package:missionfit/ui/components/body_map/body_map_frames.dart';
 import 'package:missionfit/ui/theme/accents.dart';
@@ -64,6 +65,19 @@ void main() {
         final b = data.getUint8(p * 4 + 2);
         expect(b == 0 || b >= 128, isTrue);
       }
+    });
+
+    test('bölge piksel sayıları: kanat (lats) en çok arka yüzde görünür', () {
+      expect(frames.regionPixels, hasLength(72));
+      // Ön karede göğüs görünür.
+      expect(frames.regionPixels[0][1], greaterThan(500));
+      final lats = bodyMapRegionId('lats');
+      final best = bestFrameFor(frames.regionPixels, [lats]);
+      // Arka yüz: 180° ± 60° (kare 24–48).
+      expect(bodyMapViewName(best * 5.0), anyOf('Arka', 'Sol yan', 'Sağ yan'));
+      expect((best * 5 - 180).abs(), lessThanOrEqualTo(60));
+      // Ön karede kanat görünmez sayılır, en iyi karede görünür.
+      expect(regionsVisibleIn(frames.regionPixels, best, [lats]), isTrue);
     });
 
     test('regionAt: tek piksellik kırıntı sonucu değiştirmez (5×5 çoğunluk)', () {
@@ -249,6 +263,80 @@ void main() {
       expect(taps, ['chest']);
     });
 
+    testWidgets('kas olmayan yere dokunuş onBackgroundTap', (tester) async {
+      final taps = <String>[];
+      var bg = 0;
+      await tester.pumpWidget(
+        wrap(
+          BodyMap(levels: const {}, onRegionTap: taps.add, onBackgroundTap: () => bg++),
+          reduce: true,
+        ),
+      );
+      await tester.pump();
+      await tester.tapAt(const Offset(2, 2));
+      await tester.pump();
+      expect(bg, 1);
+      expect(taps, isEmpty);
+    });
+
+    group('seçim', () {
+      Widget map(Set<String> sel, {String? name}) =>
+          BodyMap(levels: const {}, selectedRegions: sel, selectedName: name);
+
+      testWidgets('azaltılmış harekette görünmeyen kas için en iyi kareye atlar', (tester) async {
+        await tester.pumpWidget(wrap(map(const {}), reduce: true));
+        await tester.pump();
+        expect(state(tester).frame, 0);
+        await tester.pumpWidget(wrap(map(const {'lats'}), reduce: true));
+        await tester.pump(); // post-frame: atlama
+        await tester.pump();
+        final best = bestFrameFor(frames.regionPixels, [bodyMapRegionId('lats')]);
+        expect(state(tester).frame, best);
+        // Animasyonsuz: açı hemen hedefte, ara kare yok.
+        expect(state(tester).angle, angleTowardFrame(0, best));
+      });
+
+      testWidgets('hareket açıkken en iyi kareye yumuşakça döner', (tester) async {
+        await tester.pumpWidget(wrap(map(const {})));
+        await tester.pumpAndSettle(); // açılış turu biter, 000
+        await tester.pumpWidget(wrap(map(const {'lats'})));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        final best = bestFrameFor(frames.regionPixels, [bodyMapRegionId('lats')]);
+        expect(state(tester).frame, isNot(best)); // henüz yolda
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(state(tester).frame, best);
+      });
+
+      testWidgets('görünen kas seçilince dönmez', (tester) async {
+        await tester.pumpWidget(wrap(map(const {}), reduce: true));
+        await tester.pump();
+        await tester.pumpWidget(wrap(map(const {'chest'}), reduce: true));
+        await tester.pump();
+        await tester.pump();
+        expect(state(tester).frame, 0);
+      });
+
+      testWidgets('ekran okuyucu değeri seçili kası söyler', (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(wrap(map(const {'chest'}, name: 'Göğüs kası'), reduce: true));
+        await tester.pump();
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Kas haritası')),
+          matchesSemantics(
+            label: 'Kas haritası',
+            value: 'Ön. Seçili: Göğüs kası',
+            increasedValue: 'Sol yan. Seçili: Göğüs kası',
+            decreasedValue: 'Sağ yan. Seçili: Göğüs kası',
+            isImage: true,
+            hasIncreaseAction: true,
+            hasDecreaseAction: true,
+          ),
+        );
+        handle.dispose();
+      });
+    });
+
     testWidgets('Semantics etiketi parametreden gelir', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -365,12 +453,130 @@ void main() {
     }
   });
 
+  group('shader seçimi', () {
+    Future<ByteData?> render(
+      WidgetTester tester,
+      ThemeFamily family, {
+      Map<String, int> levels = const {},
+      Set<String> selected = const {},
+    }) async {
+      final theme = MfTheme.build(family, Brightness.dark, defaultAccentFor(family));
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            bodyMapFramesProvider.overrideWith((ref) => frames),
+            bodyMapProgramProvider.overrideWith((ref) async => program),
+          ],
+          child: MaterialApp(
+            theme: buildThemeData(theme),
+            home: MediaQuery(
+              data: const MediaQueryData(disableAnimations: true),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: RepaintBoundary(
+                  key: key,
+                  child: SizedBox(
+                    width: 360,
+                    height: 720,
+                    child: BodyMap(levels: levels, selectedRegions: selected),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      return tester.runAsync(() async {
+        final img = await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary)
+            .toImage();
+        final bytes = await img.toByteData();
+        img.dispose();
+        return bytes!;
+      });
+    }
+
+    /// (x, y) çevresindeki 9×9 pencerede piksel parlaklıklarının toplamı (alfa × RGB).
+    int energy(ByteData rgba, int cx, int cy) {
+      var sum = 0;
+      for (var y = cy - 4; y <= cy + 4; y++) {
+        for (var x = cx - 4; x <= cx + 4; x++) {
+          final o = (y * 360 + x) * 4;
+          sum += rgba.getUint8(o) + rgba.getUint8(o + 1) + rgba.getUint8(o + 2);
+        }
+      }
+      return sum;
+    }
+
+    /// Ön karede karın kasının ortası (kimlik haritasından aranır).
+    Offset absCenter() {
+      final abs = bodyMapRegionId('abs');
+      for (var y = 250; y < 400; y++) {
+        for (var x = 160; x < 200; x++) {
+          if (frames.regionAt(0, Offset(x + 0.5, y + 0.5), const Size(360, 720)) == abs) {
+            return Offset(x.toDouble(), y + 10.0);
+          }
+        }
+      }
+      throw StateError('karın bulunamadı');
+    }
+
+    for (final family in ThemeFamily.values) {
+      testWidgets('seçili kas seviyesi 0 olsa da vurguda yanar, diğerleri sönükleşir '
+          '(${family.name})', (tester) async {
+        if (program == null) {
+          markTestSkipped('FragmentProgram bu ortamda yüklenemedi');
+          return;
+        }
+        final c = _chestPx;
+        final a = absCenter();
+        final plain = (await render(tester, family, levels: const {'abs': 3}))!;
+        final sel = (await render(
+          tester,
+          family,
+          levels: const {'abs': 3},
+          selected: const {'chest'},
+        ))!;
+        // Göğüs (seviye 0) seçilince vurgu renginde yanar.
+        final accent = MfTheme.build(family, Brightness.dark, defaultAccentFor(family)).accent;
+        int accentPixels(ByteData rgba) {
+          var n = 0;
+          for (var y = c.dy.toInt() - 6; y <= c.dy.toInt() + 6; y++) {
+            for (var x = c.dx.toInt() - 6; x <= c.dx.toInt() + 6; x++) {
+              final o = (y * 360 + x) * 4;
+              final r = rgba.getUint8(o), g = rgba.getUint8(o + 1);
+              final dominant = accent.g > accent.r ? g > r + 20 : r > g + 20;
+              if (rgba.getUint8(o + 3) > 100 && dominant) n++;
+            }
+          }
+          return n;
+        }
+
+        // (Canlı'da komşu karının ışıması birkaç pikseli zaten boyayabilir.)
+        expect(accentPixels(sel), greaterThan(accentPixels(plain) + 20));
+        // Seçili olmayan karın (seviye 3) sönükleşir.
+        expect(
+          energy(sel, a.dx.toInt(), a.dy.toInt()),
+          lessThan(energy(plain, a.dx.toInt(), a.dy.toInt())),
+        );
+      });
+    }
+  });
+
   test('packFramePixels: ışık × alfa, kimlik, sis eşiği, 4 bit kimlik', () {
     // 3 piksel: bölge 1 (alfa 255), bölge 14 (alfa 100 → boş), boş 15.
     final shade = Uint8List.fromList([200, 0, 0, 255, 90, 0, 0, 100, 0, 0, 0, 0]);
     final id = Uint8List.fromList([17, 0, 0, 255, 238, 0, 0, 255, 255, 0, 0, 255]);
-    final (packed, nibbles) = packFramePixels(shade, id, 3);
+    final (packed, nibbles, counts) = packFramePixels(shade, id, 3);
     expect(packed, [200, 17, 255, 255, 0, 238, 0, 255, 0, 255, 0, 255]);
     expect(nibbles, [1 | 14 << 4, 15]);
+    expect(counts, hasLength(16));
+    expect(counts[1], 1);
+    expect(counts[14], 1);
+    expect(counts[15], 1);
+    expect(counts.reduce((a, b) => a + b), 3);
   });
 }

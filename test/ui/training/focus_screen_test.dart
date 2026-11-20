@@ -450,19 +450,56 @@ void main() {
     });
   });
 
-  testWidgets('hedef dolunca + Set görünür ve hedefi artırır', (t) async {
-    final ctx = await _pump(t, sets: [_set('bench', 1), _set('bench', 2), _set('bench', 3)]);
-    expect(find.text('+ Set'), findsOneWidget);
-    await t.tap(find.text('+ Set'));
-    await t.pumpAndSettle();
-    expect(ctx.repo.active!.plan.first.targetSets, 4);
-    expect(find.textContaining('SET 4/4'), findsOneWidget);
-    expect(_enabled(t), isTrue);
-  });
+  group('Set sayısı –/+', () {
+    testWidgets('+ her an görünür, hedefi artırır', (t) async {
+      final ctx = await _pump(t);
+      expect(find.text('+ Set'), findsNothing); // sondaki "+ Set" kaldırıldı
+      expect(find.textContaining('SET 1/3'), findsOneWidget);
+      await t.tap(_btn('set sayısını artır'));
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.plan.first.targetSets, 4);
+      expect(find.textContaining('SET 1/4'), findsOneWidget);
+    });
 
-  testWidgets('50. setten sonra + Set gizlenir', (t) async {
-    await _pump(t, sets: [for (var i = 1; i <= 50; i++) _set('bench', i)]);
-    expect(find.text('+ Set'), findsNothing);
+    testWidgets('hedef dolunca + ile bir set daha yapılır', (t) async {
+      final ctx = await _pump(t, sets: [_set('bench', 1), _set('bench', 2), _set('bench', 3)]);
+      await t.tap(_btn('set sayısını artır'));
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.plan.first.targetSets, 4);
+      expect(find.textContaining('SET 4/4'), findsOneWidget);
+      expect(_enabled(t), isTrue);
+    });
+
+    testWidgets('2 set yapılmışken – hareketi bitirir; sıradaki harekete geçilir', (t) async {
+      final ctx = await _pump(t, sets: [_set('bench', 1), _set('bench', 2)]);
+      expect(_enabled(t), isTrue);
+      await t.tap(_btn('set sayısını azalt'));
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.plan.first.targetSets, 2);
+      expect(find.textContaining('SET 2/2'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Sıradaki hareket'), findsOneWidget);
+      // Yapılan set sayısının altına inmez: – pasif.
+      expect(
+        t.getSemantics(_btn('set sayısını azalt')),
+        matchesSemantics(label: 'set sayısını azalt', isButton: true, hasEnabledState: true),
+      );
+    });
+
+    testWidgets('–/+ dokunma alanı ≥ 48 dp', (t) async {
+      await _pump(t);
+      for (final l in ['set sayısını azalt', 'set sayısını artır']) {
+        final s = t.getSize(_btn(l));
+        expect(s.width, greaterThanOrEqualTo(48));
+        expect(s.height, greaterThanOrEqualTo(48));
+      }
+    });
+
+    testWidgets('50 sette + pasif', (t) async {
+      final ctx = await _pump(t, sets: [for (var i = 1; i <= 50; i++) _set('bench', i)]);
+      await t.tap(_btn('set sayısını artır'), warnIfMissed: false);
+      await t.pumpAndSettle();
+      expect(ctx.repo.active!.plan.first.targetSets, 3);
+    });
   });
 
   group('Takip tipine göre', () {
