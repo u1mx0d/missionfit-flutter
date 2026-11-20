@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../app/profile_controller.dart';
 import '../../app/providers.dart';
 import '../../app/theme_controller.dart';
+import '../components/unsynced_sign_out.dart';
 import '../../domain/calories.dart';
 import '../../domain/format.dart';
 import '../../domain/notification_settings.dart';
@@ -134,6 +135,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with WidgetsBindi
       ),
     );
     if (yes != true || !mounted) return;
+    if (!await flushOrConfirmSignOut(context, ref) || !mounted) return;
     try {
       await ref.read(authRepositoryProvider).signOut();
     } on AuthFailure catch (e) {

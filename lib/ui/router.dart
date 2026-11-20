@@ -6,6 +6,7 @@ import '../app/known_accounts.dart';
 import '../app/pending_signup.dart';
 import '../app/profile_controller.dart';
 import '../app/providers.dart';
+import 'components/unsynced_sign_out.dart';
 import 'auth/forgot_password_screen.dart';
 import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
@@ -233,7 +234,10 @@ class _SplashState extends ConsumerState<_Splash> {
                       secondary: true,
                       onPressed: _busy
                           ? null
-                          : () => _do(() => ref.read(authRepositoryProvider).signOut()),
+                          : () => _do(() async {
+                              if (!await flushOrConfirmSignOut(context, ref)) return;
+                              await ref.read(authRepositoryProvider).signOut();
+                            }),
                     ),
                   ],
                 ),

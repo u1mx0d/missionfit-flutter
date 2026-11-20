@@ -9,6 +9,7 @@ import '../../app/profile_controller.dart' show signedInUserIdProvider;
 import '../../app/providers.dart';
 import '../../app/theme_controller.dart';
 import '../../app/today_provider.dart';
+import '../components/unsynced_sign_out.dart';
 import '../../domain/notification_settings.dart';
 import '../../domain/onboarding_rules.dart';
 import '../../domain/training_style.dart';
@@ -343,6 +344,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
       ),
     );
     if (ok != true || !mounted) return;
+    if (!await flushOrConfirmSignOut(context, ref) || !mounted) return;
     try {
       await ref.read(authRepositoryProvider).signOut();
     } on AuthFailure catch (e) {

@@ -16,6 +16,7 @@ import 'package:missionfit/ui/router.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
+import 'package:missionfit/app/session_controller.dart' show signOutFlushProvider;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -49,6 +50,7 @@ Future<(ProviderContainer, GoRouter)> _pump(
   final c = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
+      signOutFlushProvider.overrideWithValue(() async => flushLeft),
       envProvider.overrideWithValue(
         const Env(
           supabaseUrl: 'https://x.supabase.co',
@@ -95,7 +97,11 @@ class _App extends ConsumerWidget {
 
 String _loc(GoRouter r) => r.routerDelegate.currentConfiguration.uri.path;
 
+/// Çıkış öncesi gönderimden sonra kalan işlem sayısı (sahte).
+var flushLeft = 0;
+
 void main() {
+  setUp(() => flushLeft = 0);
   testWidgets('oturum yokken /bugun → /hosgeldin', (tester) async {
     final (_, router) = await _pump(tester, signedIn: false);
     router.go('/bugun');

@@ -205,6 +205,24 @@ class SessionController extends Notifier<SessionState> {
     await _sync(catalogs: !state.initialPullDone);
   });
 
+  /// Çıkıştan önce bekleyen yerel değişiklikleri göndermeyi dener ve kalan işlem sayısını
+  /// döndürür (0: güvenle çıkılabilir). Çıkış yerel veriyi kuyrukla birlikte sildiği için
+  /// gönderilmemiş değişiklik kaybolurdu. Asla fırlatmaz; sayı okunamazsa 1 döner (uyar).
+  Future<int> flushBeforeSignOut({Duration timeout = const Duration(seconds: 8)}) async {
+    final outbox = ref.read(outboxProvider);
+    try {
+      if (await outbox.pendingCount().first == 0) return 0;
+      await _enqueue(_sync).timeout(timeout);
+    } catch (e, st) {
+      debugPrint('Çıkış öncesi gönderim başarısız: $e\n$st');
+    }
+    try {
+      return await outbox.pendingCount().first;
+    } catch (_) {
+      return 1;
+    }
+  }
+
   /// Uygulama öne gelince her zaman eşitler.
   Future<void> onResumed() => _enqueue(_sync);
 
@@ -234,3 +252,8 @@ class SessionLifecycleObserver extends WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) unawaited(_controller.onResumed());
   }
 }
+
+/// Çıkıştan önce bekleyenleri gönderir, kalan sayıyı döndürür; testlerde değiştirilir.
+final signOutFlushProvider = Provider<Future<int> Function()>(
+  (ref) => ref.read(sessionControllerProvider.notifier).flushBeforeSignOut,
+);

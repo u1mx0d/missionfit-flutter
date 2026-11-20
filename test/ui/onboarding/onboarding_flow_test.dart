@@ -19,6 +19,8 @@ import 'package:missionfit/ui/profile/username_field.dart' show usernameCheckDel
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
 import 'package:missionfit/data/auth/auth_repository.dart';
+import 'package:missionfit/app/session_controller.dart' show signOutFlushProvider;
+import 'package:missionfit/ui/components/unsynced_sign_out.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
@@ -87,6 +89,7 @@ Future<_Harness> _pump(
   final c = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
+      signOutFlushProvider.overrideWithValue(() async => flushLeft),
       sharedPreferencesProvider.overrideWithValue(sp),
       signedInUserIdProvider.overrideWithValue('u1'),
       notificationServiceProvider.overrideWithValue(notifications),
@@ -219,8 +222,26 @@ Future<void> _finishAll(WidgetTester t) async {
   await _tapText(t, 'Bitir');
 }
 
+/// Çıkış öncesi gönderimden sonra kalan işlem sayısı (sahte).
+var flushLeft = 0;
+
 void main() {
+  setUp(() => flushLeft = 0);
   setUpAll(tz_data.initializeTimeZones);
+
+  testWidgets('çıkışta gönderilemeyen değişiklik varsa uyarır, Vazgeç çıkmaz', (tester) async {
+    flushLeft = 1;
+    final h = await _pump(tester);
+    await _tapText(tester, 'Çıkış yap');
+    await tester.tap(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('Çıkış yap')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(unsyncedTitle), findsOneWidget);
+    await tester.tap(find.text('Vazgeç'));
+    await tester.pumpAndSettle();
+    expect(h.auth.signOuts, 0);
+  });
 
   testWidgets('M-1: ilk adımda Çıkış yap onaydan sonra oturumu kapatır', (tester) async {
     final h = await _pump(tester);

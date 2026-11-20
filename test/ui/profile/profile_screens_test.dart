@@ -18,6 +18,8 @@ import 'package:missionfit/ui/profile/training_style_screen.dart';
 import 'package:missionfit/ui/theme/accents.dart';
 import 'package:missionfit/ui/theme/app_theme.dart';
 import 'package:missionfit/ui/theme/mf_theme.dart';
+import 'package:missionfit/app/session_controller.dart' show signOutFlushProvider;
+import 'package:missionfit/ui/components/unsynced_sign_out.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 
@@ -166,6 +168,7 @@ Future<_Ctx> _pump(
   final c = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
+      signOutFlushProvider.overrideWithValue(() async => flushLeft),
       sharedPreferencesProvider.overrideWithValue(sp),
       signedInUserIdProvider.overrideWithValue('u1'),
       authRepositoryProvider.overrideWithValue(auth),
@@ -201,7 +204,11 @@ Future<_Ctx> _pump(
 
 Finder _field(String label) => find.widgetWithText(TextField, label);
 
+/// Çıkış öncesi gönderimden sonra kalan işlem sayısı (sahte).
+var flushLeft = 0;
+
 void main() {
+  setUp(() => flushLeft = 0);
   setUpAll(tz_data.initializeTimeZones);
 
   group('Vücut ve hedef', () {
@@ -406,6 +413,38 @@ void main() {
       await t.pumpAndSettle();
       expect(ctx.auth.calls, ['signOut']);
       expect(ctx.container.read(knownAccountsProvider).map((a) => a.userId), ['u1']); // kart kalır
+    });
+
+    testWidgets('gönderilemeyen değişiklik varsa uyarır; yalnızca "Yine de çık" çıkar', (t) async {
+      flushLeft = 2;
+      final ctx = await _pump(t);
+      Future<void> confirmFirst() async {
+        await t.tap(find.text('Çıkış yap'));
+        await t.pumpAndSettle();
+        await t.tap(find.widgetWithText(TextButton, 'Çıkış yap'));
+        await t.pumpAndSettle();
+      }
+
+      await confirmFirst();
+      expect(find.text(unsyncedTitle), findsOneWidget);
+      await t.tap(find.text('Vazgeç'));
+      await t.pumpAndSettle();
+      expect(ctx.auth.calls, isEmpty);
+
+      await confirmFirst();
+      await t.tap(find.text(unsyncedConfirm));
+      await t.pumpAndSettle();
+      expect(ctx.auth.calls, ['signOut']);
+    });
+
+    testWidgets('hepsi gönderildiyse uyarı çıkmadan çıkar', (t) async {
+      final ctx = await _pump(t);
+      await t.tap(find.text('Çıkış yap'));
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(TextButton, 'Çıkış yap'));
+      await t.pumpAndSettle();
+      expect(find.text(unsyncedTitle), findsNothing);
+      expect(ctx.auth.calls, ['signOut']);
     });
 
     testWidgets('birim ve hafta başlangıcı profile yazılır', (t) async {

@@ -243,4 +243,46 @@ void main() {
       expect(s.initialPullDone, isTrue);
     },
   );
+
+  group('çıkıştan önce bekleyenleri gönderme', () {
+    test('bekleyen yoksa eşitlemeden 0 döner', () async {
+      await emit(_session('u'));
+      clearInteractions(sync);
+      final left = await c.read(sessionControllerProvider.notifier).flushBeforeSignOut();
+      expect(left, 0);
+      verifyNever(() => sync.syncNow());
+    });
+
+    test('bekleyen varsa önce gönderir, gönderildiyse 0 döner', () async {
+      await emit(_session('u'));
+      clearInteractions(sync);
+      var pending = 2;
+      when(() => outbox.pendingCount()).thenAnswer((_) => Stream.value(pending));
+      when(() => sync.syncNow()).thenAnswer((_) async {
+        pending = 0;
+        return SyncResult();
+      });
+      final left = await c.read(sessionControllerProvider.notifier).flushBeforeSignOut();
+      expect(left, 0);
+      verify(() => sync.syncNow()).called(1);
+    });
+
+    test('gönderilemezse (çevrimdışı) kalan sayıyı döner, fırlatmaz', () async {
+      await emit(_session('u'));
+      when(() => outbox.pendingCount()).thenAnswer((_) => Stream.value(3));
+      when(() => sync.syncNow()).thenThrow(Exception('ağ yok'));
+      final left = await c.read(sessionControllerProvider.notifier).flushBeforeSignOut();
+      expect(left, 3);
+    });
+
+    test('takılan gönderim zaman aşımında kalan sayıyı döner', () async {
+      await emit(_session('u'));
+      when(() => outbox.pendingCount()).thenAnswer((_) => Stream.value(1));
+      when(() => sync.syncNow()).thenAnswer((_) => Completer<SyncResult>().future);
+      final left = await c
+          .read(sessionControllerProvider.notifier)
+          .flushBeforeSignOut(timeout: const Duration(milliseconds: 50));
+      expect(left, 1);
+    });
+  });
 }
