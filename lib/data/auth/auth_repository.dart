@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -188,6 +189,8 @@ class AuthRepository {
     } on AuthFailure {
       rethrow;
     } catch (e) {
+      // Kullanıcıya genel mesaj gider; ayrıntı yalnızca hata ayıklama kaydında kalır.
+      debugPrint('Auth hatası ($action): $e');
       final info = toAuthErrorInfo(e);
       throw AuthFailure(authErrorMessage(info, action), code: info.code);
     }
