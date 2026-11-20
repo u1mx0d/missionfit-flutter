@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show PlatformException;
@@ -22,11 +23,17 @@ abstract interface class NotificationService {
   Future<void> showRest({required DateTime endsAt, required String nextLabel, String? payload});
 
   /// Dinlenme bitişinde tam zamanlı, titreşimli bildirim. Aynı kimliği kullanır; geri sayımın
-  /// yerine geçer.
-  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel});
+  /// yerine geçer. [payload] dokununca uygulamaya geri döner.
+  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel, String? payload});
 
   /// Geri sayımı ve bekleyen bitiş alarmını kaldırır.
   Future<void> cancelRest();
+
+  /// Uygulama bir bildirime dokunularak açıldıysa o bildirimin yükü; değilse null.
+  Future<String?> launchPayload();
+
+  /// Uygulama çalışırken dokunulan bildirimlerin yükleri (eylem düğmeleri hariç).
+  Stream<String?> get tappedPayloads;
 }
 
 const taskChannelId = 'tasks';
@@ -92,6 +99,7 @@ class ScheduledAlert {
     required this.body,
     required this.at,
     required this.vibrationPattern,
+    this.payload,
   });
   final int id;
   final String channelId;
@@ -100,6 +108,7 @@ class ScheduledAlert {
   final String body;
   final DateTime at;
   final Int64List vibrationPattern;
+  final String? payload;
 }
 
 /// flutter_local_notifications eklentisinin ince sarmalayıcısı; testler bunu taklit eder.
@@ -132,6 +141,12 @@ abstract interface class NotificationsPlatform {
 
   /// Gösterilen bildirimi ve aynı kimlikle bekleyen alarmı iptal eder.
   Future<void> cancel(int id);
+
+  /// Uygulamayı açan bildirim dokunuşunun yükü (eylem düğmesi değil); yoksa null.
+  Future<String?> launchPayload();
+
+  /// Uygulama çalışırken bildirimin kendisine dokunulunca yükü.
+  Stream<String?> get tappedPayloads;
 }
 
 class PluginNotificationsPlatform implements NotificationsPlatform {
@@ -142,6 +157,7 @@ class PluginNotificationsPlatform implements NotificationsPlatform {
 
   final FlutterLocalNotificationsPlugin _plugin;
   final DidReceiveBackgroundNotificationResponseCallback? onBackgroundResponse;
+  final _taps = StreamController<String?>.broadcast();
 
   AndroidFlutterLocalNotificationsPlugin? get _android =>
       _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -150,9 +166,28 @@ class PluginNotificationsPlatform implements NotificationsPlatform {
   Future<void> initialize(String smallIcon) async {
     await _plugin.initialize(
       settings: InitializationSettings(android: AndroidInitializationSettings(smallIcon)),
+      // Bildirimin kendisine dokunuş (uygulama açıkken ya da arka plandan öne gelirken).
+      onDidReceiveNotificationResponse: (r) {
+        if (r.notificationResponseType == NotificationResponseType.selectedNotification) {
+          _taps.add(r.payload);
+        }
+      },
       onDidReceiveBackgroundNotificationResponse: onBackgroundResponse,
     );
   }
+
+  @override
+  Future<String?> launchPayload() async {
+    final d = await _plugin.getNotificationAppLaunchDetails();
+    final r = d?.notificationResponse;
+    if (d?.didNotificationLaunchApp != true || r == null) return null;
+    return r.notificationResponseType == NotificationResponseType.selectedNotification
+        ? r.payload
+        : null;
+  }
+
+  @override
+  Stream<String?> get tappedPayloads => _taps.stream;
 
   @override
   Future<void> createChannel({
@@ -284,6 +319,7 @@ class PluginNotificationsPlatform implements NotificationsPlatform {
       body: n.body,
       scheduledDate: tz.TZDateTime.from(n.at, tz.UTC),
       androidScheduleMode: mode,
+      payload: n.payload,
       notificationDetails: NotificationDetails(
         android: _alertDetails(
           channelId: n.channelId,
@@ -388,18 +424,26 @@ class LocalNotificationService implements NotificationService {
   }
 
   @override
-  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel}) => _platform.scheduleExact(
-    ScheduledAlert(
-      id: restNotificationId,
-      channelId: restChannelId,
-      channelName: restChannelName,
-      title: 'Dinlenme bitti',
-      body: nextLabel ?? 'Sıradaki sete geç.',
-      at: endsAt,
-      vibrationPattern: restVibrationPattern,
-    ),
-  );
+  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel, String? payload}) =>
+      _platform.scheduleExact(
+        ScheduledAlert(
+          id: restNotificationId,
+          channelId: restChannelId,
+          channelName: restChannelName,
+          title: 'Dinlenme bitti',
+          body: nextLabel ?? 'Sıradaki sete geç.',
+          at: endsAt,
+          vibrationPattern: restVibrationPattern,
+          payload: payload,
+        ),
+      );
 
   @override
   Future<void> cancelRest() => _platform.cancel(restNotificationId);
+
+  @override
+  Future<String?> launchPayload() => _platform.launchPayload();
+
+  @override
+  Stream<String?> get tappedPayloads => _platform.tappedPayloads;
 }

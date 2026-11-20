@@ -57,6 +57,10 @@ class FakePlatform implements NotificationsPlatform {
   Future<void> cancel(int id) async => cancelled.add(id);
   @override
   Future<void> cancelAll() async => calls.add('cancelAll');
+  @override
+  Future<String?> launchPayload() async => null;
+  @override
+  Stream<String?> get tappedPayloads => const Stream.empty();
 }
 
 class _BrokenRepo extends Fake implements WorkoutRepository {
@@ -130,7 +134,7 @@ void main() {
 
     test('scheduleRestEnd: bitişte titreşimli tam zamanlı alarm', () async {
       final endsAt = t0.add(const Duration(seconds: 90));
-      await service.scheduleRestEnd(endsAt, nextLabel: 'Sıradaki: Dips');
+      await service.scheduleRestEnd(endsAt, nextLabel: 'Sıradaki: Dips', payload: 'yük');
 
       final a = platform.alarms.single;
       expect(a.id, restNotificationId);
@@ -139,6 +143,8 @@ void main() {
       expect(a.title, 'Dinlenme bitti');
       expect(a.body, 'Sıradaki: Dips');
       expect(a.vibrationPattern, restVibrationPattern);
+      // "Dinlenme bitti"ye dokununca da antrenmana dönülür.
+      expect(a.payload, 'yük');
     });
 
     test('cancelRest bildirimi ve alarmı birlikte iptal eder', () async {

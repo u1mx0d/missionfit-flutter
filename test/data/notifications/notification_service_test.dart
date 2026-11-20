@@ -95,4 +95,12 @@ void main() {
       ),
     ).called(1);
   });
+
+  test('açılış yükü ve dokunuşlar platformdan aynen gelir', () async {
+    when(() => platform.launchPayload()).thenAnswer((_) async => 'yük');
+    when(() => platform.tappedPayloads).thenAnswer((_) => Stream.value('dokunuş'));
+
+    expect(await service.launchPayload(), 'yük');
+    expect(await service.tappedPayloads.single, 'dokunuş');
+  });
 }

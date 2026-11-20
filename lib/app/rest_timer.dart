@@ -305,7 +305,7 @@ class RestTimer extends Notifier<RestState?> {
     );
     await _safe('bildirim', () async {
       await _notifications.showRest(endsAt: s.endsAt, nextLabel: label, payload: payload.encode());
-      await _notifications.scheduleRestEnd(s.endsAt, nextLabel: label);
+      await _notifications.scheduleRestEnd(s.endsAt, nextLabel: label, payload: payload.encode());
     });
   }
 

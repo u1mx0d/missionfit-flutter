@@ -144,7 +144,7 @@ Future<void> applyRestAction(
   await repo.setRestEnd(p.sessionId, next);
   await repo.rememberRest(p.userId, p.exerciseId, updated.totalSeconds);
   await notifications.showRest(endsAt: next, nextLabel: p.nextLabel, payload: updated.encode());
-  await notifications.scheduleRestEnd(next, nextLabel: p.nextLabel);
+  await notifications.scheduleRestEnd(next, nextLabel: p.nextLabel, payload: updated.encode());
 }
 
 /// Bildirim yanıtını yönlendirir: ana isolate açıksa ona iletir, değilse burada uygular.

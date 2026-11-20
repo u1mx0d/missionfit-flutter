@@ -507,6 +507,30 @@ void main() {
       expect(remote.sent, ['session_sets.upsert:$setId']);
     });
 
+    test('kurtarma (abandon) 23514 verirse işlem geçici sayılır, yerel antrenman kalır', () async {
+      await seedLocal();
+      remote.failSend = (t, id) =>
+          t == 'workout_sessions' && id == sessionId ? uniqueViolation() : null;
+      remote.failAbandon = const PostgrestException(
+        message: 'new row violates check constraint',
+        code: '23514',
+      );
+
+      final r = await engine.push();
+
+      expect(remote.abandonCalls, hasLength(1));
+      expect(r.dropped, 0);
+      expect(r.pushed, 0);
+      final pending = await outbox.pending();
+      expect(pending.map((o) => o.opId), ['o1', 'o2']);
+      expect(pending.first.attempts, 1);
+      expect(remote.sent, isEmpty);
+      expect(
+        await (db.select(db.workoutSessions)..where((t) => t.id.equals(sessionId))).get(),
+        hasLength(1),
+      );
+    });
+
     test('active olmayan oturumda 23505 kurtarma denenmez', () async {
       await outbox.enqueue(
         upsertOp('o1', 'workout_sessions', {

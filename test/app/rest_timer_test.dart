@@ -39,6 +39,7 @@ class FakeNotifications implements NotificationService {
   final log = <String>[];
   final shown = <({DateTime endsAt, String nextLabel, String? payload})>[];
   final scheduled = <DateTime>[];
+  final scheduledPayloads = <String?>[];
   int cancels = 0;
 
   @override
@@ -62,9 +63,10 @@ class FakeNotifications implements NotificationService {
   }
 
   @override
-  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel}) async {
+  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel, String? payload}) async {
     log.add('schedule');
     scheduled.add(endsAt);
+    scheduledPayloads.add(payload);
   }
 
   @override
@@ -72,6 +74,11 @@ class FakeNotifications implements NotificationService {
     log.add('cancel');
     cancels++;
   }
+
+  @override
+  Future<String?> launchPayload() async => null;
+  @override
+  Stream<String?> get tappedPayloads => const Stream.empty();
 }
 
 Future<void> _seedExercise(AppDatabase db, String id, String name) => db
@@ -237,6 +244,8 @@ void main() {
       expect(p.userId, 'u1');
       expect(p.exerciseId, 'bench');
       expect(p.totalSeconds, 90);
+      // "Dinlenme bitti" de aynı yükü taşır: dokununca antrenmana dönülür.
+      expect(RestPayload.tryDecode(notifications.scheduledPayloads.single)!.sessionId, w.sessionId);
     });
 
     test('adjust → bildirim ve alarm yeni bitişle', () async {

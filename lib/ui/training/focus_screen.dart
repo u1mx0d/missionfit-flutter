@@ -25,6 +25,10 @@ import 'focus_widgets.dart';
 import 'rest_screen.dart';
 import 'workout_summary_screen.dart' show routeAfterFinish;
 
+/// "Geri al" snackbar'ının alt boşluğu: odak modunda alt şerit (48 dp) ve "Seti tamamla"
+/// (60 dp), dinlenmede "Atla" (60 dp) üstünde kalır; kenar boşlukları dahil.
+const _undoBottomGap = 12.0 + 48 + 12 + 60 + 12;
+
 /// Odak modu: yalnızca o anki hareket ve set. Klavye açılmaz; değerler önceden dolu gelir,
 /// –/+ ile değişir, set tek dokunuşla tamamlanır. Ekran açık kalır. Dinlenme sürerken
 /// dinlenme ekranı bunun üstünde tam ekran durur.
@@ -132,6 +136,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingOb
     final messenger = ScaffoldMessenger.of(context);
     // Snackbar eylemi ekran kapandıktan sonra da çalışabilir; ref yerine bildirici tutulur.
     final ctl = _ctl;
+    final rest = ref.read(restTimerProvider.notifier);
+    // Geri al, ana düğmelerin (dinlenmede "Atla", odakta "Seti tamamla") üstünde yüzer.
+    final undoBottom = MediaQuery.paddingOf(context).bottom + _undoBottomGap;
     try {
       final duration = p.tracking == 'duration';
       final s = await ctl.completeSet(
@@ -152,17 +159,18 @@ class _FocusScreenState extends ConsumerState<FocusScreen> with WidgetsBindingOb
           content: const Text('Set kaydedildi.'),
           duration: const Duration(seconds: 5),
           persist: false,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, undoBottom),
           action: SnackBarAction(
             label: 'Geri al',
+            // Set geri alınınca o setin dinlenmesi de biter (bildirim ve alarm kalkar).
             onPressed: () => unawaited(
-              ctl
-                  .undo(s)
-                  .then(
-                    (_) {},
-                    onError: (Object e) => messenger.showSnackBar(
-                      const SnackBar(content: Text('İşlem yapılamadı. Tekrar dene.')),
-                    ),
-                  ),
+              Future.wait([rest.skip(), ctl.undo(s)]).then(
+                (_) {},
+                onError: (Object e) => messenger.showSnackBar(
+                  const SnackBar(content: Text('İşlem yapılamadı. Tekrar dene.')),
+                ),
+              ),
             ),
           ),
         ),

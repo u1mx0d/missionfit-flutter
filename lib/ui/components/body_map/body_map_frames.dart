@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -70,21 +71,9 @@ class BodyMapFrames {
     Future<(ui.Image, Uint8List)> frame(int i) async {
       final n = i.toString().padLeft(3, '0');
       final (shade, id) = await (pixels('$_dir/shade_$n.webp'), pixels('$_dir/id_$n.png')).wait;
-      final px = width * height;
-      final packed = Uint8List(px * 4);
-      final nibbles = Uint8List((px + 1) >> 1);
-      for (var p = 0; p < px; p++) {
-        final o = p * 4;
-        // Kırmızı kanal = kimlik × 17; yuvarlayarak böl.
-        final rid = (id[o] + 8) ~/ 17;
-        nibbles[p >> 1] |= p.isEven ? rid : rid << 4;
-        // WebP kenarındaki soluk alfa sisi (< 0,5) boş sayılır.
-        final a = shade[o + 3] < 128 ? 0 : shade[o + 3];
-        packed[o] = shade[o] * a ~/ 255;
-        packed[o + 1] = id[o];
-        packed[o + 2] = a;
-        packed[o + 3] = 255;
-      }
+      // Piksel paketleme (kare başına ~260 bin piksel) ana isolate'ı kilitlemesin diye
+      // ayrı isolate'ta yapılır; ilk açılışta takılma olmaz.
+      final (packed, nibbles) = await _packInIsolate(shade, id, width * height);
       final image = await _fromPixels(packed, width, height);
       return (image, nibbles);
     }
@@ -173,6 +162,31 @@ class BodyMapFrames {
     }
   }
 }
+
+/// Işıklı görüntü ve kimlik haritası piksellerinden (düz RGBA) kare dokusunu ve 4 bitlik
+/// kimlik tablosunu üretir. Saf fonksiyon: [Isolate.run] içinde çalışır.
+(Uint8List, Uint8List) packFramePixels(Uint8List shade, Uint8List id, int px) {
+  final packed = Uint8List(px * 4);
+  final nibbles = Uint8List((px + 1) >> 1);
+  for (var p = 0; p < px; p++) {
+    final o = p * 4;
+    // Kırmızı kanal = kimlik × 17; yuvarlayarak böl.
+    final rid = (id[o] + 8) ~/ 17;
+    nibbles[p >> 1] |= p.isEven ? rid : rid << 4;
+    // WebP kenarındaki soluk alfa sisi (< 0,5) boş sayılır.
+    final a = shade[o + 3] < 128 ? 0 : shade[o + 3];
+    packed[o] = shade[o] * a ~/ 255;
+    packed[o + 1] = id[o];
+    packed[o + 2] = a;
+    packed[o + 3] = 255;
+  }
+  return (packed, nibbles);
+}
+
+// Üst düzey: isolate'a gönderilen kapanış yalnızca bu parametreleri taşır (yükleyicinin
+// görüntü listesi gibi gönderilemeyen yerel değişkenlerini değil).
+Future<(Uint8List, Uint8List)> _packInIsolate(Uint8List shade, Uint8List id, int px) =>
+    Isolate.run(() => packFramePixels(shade, id, px));
 
 /// Dinleyici kalmayınca bu süre sonra kareler bırakılır (sekmeler arası hızlı geçişte
 /// yeniden çözmemek için).

@@ -78,9 +78,13 @@ class _FakeNotifications implements NotificationService {
     String? payload,
   }) async {}
   @override
-  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel}) async {}
+  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel, String? payload}) async {}
   @override
   Future<void> cancelRest() async {}
+  @override
+  Future<String?> launchPayload() async => null;
+  @override
+  Stream<String?> get tappedPayloads => const Stream.empty();
 }
 
 class _FakeExport extends Fake implements ExportService {

@@ -16,6 +16,7 @@ import 'env.dart';
 import 'ui/router.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/theme/mf_theme.dart';
+import 'ui/training/rest_notification_open.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,6 +83,8 @@ class _MissionFitAppState extends ConsumerState<MissionFitApp> {
     ref.watch(knownAccountSyncProvider);
     final sel = ref.watch(themeControllerProvider);
     final router = ref.watch(routerProvider);
+    // Dinlenme bildirimine dokunulunca (açılışta ya da açıkken) odak moduna dönülür.
+    ref.watch(restNotificationOpenProvider);
     return MaterialApp.router(
       title: 'MissionFit',
       debugShowCheckedModeBanner: false,

@@ -98,6 +98,12 @@ class _FakeRepo extends Fake implements WorkoutRepository {
   }
 
   @override
+  Future<void> deleteSet(LoggedSet s) async {
+    active = active!.removeSet(s.id);
+    calls.add('delete');
+  }
+
+  @override
   Future<void> setRestEnd(String sessionId, DateTime? endsAt) async => restEnd = endsAt;
   @override
   Future<DateTime?> restEndFor(String sessionId) async => restEnd;
@@ -149,9 +155,14 @@ class _FakeNotifications implements NotificationService {
     String? payload,
   }) async => log.add('show $nextLabel');
   @override
-  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel}) async => log.add('schedule');
+  Future<void> scheduleRestEnd(DateTime endsAt, {String? nextLabel, String? payload}) async =>
+      log.add('schedule');
   @override
   Future<void> cancelRest() async => log.add('cancel');
+  @override
+  Future<String?> launchPayload() async => null;
+  @override
+  Stream<String?> get tappedPayloads => const Stream.empty();
 }
 
 class _Ctx {
@@ -333,6 +344,57 @@ void main() {
     await _startRest(t, ctx);
     expect(find.byType(RestScreen), findsOneWidget);
     expect(t.takeException(), isNull);
+  });
+
+  group('Geri al', () {
+    Future<void> completeSet(WidgetTester t) async {
+      await t.tap(find.widgetWithText(FilledButton, 'Seti tamamla'));
+      await t.pump();
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 300));
+    }
+
+    Finder atla() => find.ancestor(of: _text('Atla'), matching: find.byType(FilledButton));
+
+    testWidgets('seti geri alınca dinlenme de biter, bildirim kalkar', (t) async {
+      final ctx = await _pump(t);
+      await completeSet(t);
+      expect(ctx.rest, isNotNull);
+      expect(find.byType(RestScreen), findsOneWidget);
+      expect(ctx.repo.active!.sets, hasLength(3));
+      ctx.notifications.log.clear();
+
+      await t.tap(find.text('Geri al'));
+      await t.pump();
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 300));
+
+      expect(ctx.repo.active!.sets, hasLength(2));
+      expect(ctx.rest, isNull);
+      expect(ctx.repo.restEnd, isNull);
+      expect(ctx.notifications.log, contains('cancel'));
+      expect(find.byType(RestScreen), findsNothing);
+    });
+
+    testWidgets('snackbar Atla\'yı ve Seti tamamla\'yı örtmez', (t) async {
+      final ctx = await _pump(t);
+      await completeSet(t);
+      expect(ctx.rest, isNotNull);
+      // SnackBar'ın kendi alanı kenar boşluğunu da kapsar; görünen yüzey Material'dır.
+      final bar = find.descendant(of: find.byType(SnackBar), matching: find.byType(Material)).first;
+      expect(find.text('Geri al'), findsOneWidget);
+      expect(t.getRect(bar).bottom, lessThanOrEqualTo(t.getRect(atla()).top));
+      expect(t.getSize(atla()).height, greaterThanOrEqualTo(60));
+
+      // Dinlenme atlanınca odak modunun ana düğmesi de açıkta kalır.
+      await t.tap(atla());
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 300));
+      expect(find.byType(RestScreen), findsNothing);
+      expect(find.text('Geri al'), findsOneWidget);
+      final cta = find.widgetWithText(FilledButton, 'Seti tamamla');
+      expect(t.getRect(bar).bottom, lessThanOrEqualTo(t.getRect(cta).top));
+    });
   });
 
   testWidgets('–15 sn / +15 sn / Atla çalışır', (t) async {

@@ -57,6 +57,9 @@ class FakeRemoteGateway implements RemoteGateway {
   /// `abandonOtherActiveSessions` çağrıları.
   final List<({String userId, String keepId, String endedAt})> abandonCalls = [];
 
+  /// Verilirse `abandonOtherActiveSessions` bu hatayı fırlatır (ör. `{'code': '23514'}`).
+  Object? failAbandon;
+
   @override
   Future<void> abandonOtherActiveSessions({
     required String userId,
@@ -64,6 +67,7 @@ class FakeRemoteGateway implements RemoteGateway {
     required String endedAt,
   }) async {
     abandonCalls.add((userId: userId, keepId: keepId, endedAt: endedAt));
+    if (failAbandon != null) throw failAbandon!;
     for (final r in [...?tables['workout_sessions']?.values]) {
       if (r['user_id'] == userId && r['status'] == 'active' && r['id'] != keepId) {
         put('workout_sessions', {...r, 'status': 'abandoned', 'ended_at': endedAt});

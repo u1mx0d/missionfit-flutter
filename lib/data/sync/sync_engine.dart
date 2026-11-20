@@ -79,7 +79,7 @@ class SyncEngine {
       try {
         await _sendRecovering(op);
       } catch (e) {
-        if (e is _UnsupportedOp || isPermanentError(e)) {
+        if (e is! _RecoveryFailed && (e is _UnsupportedOp || isPermanentError(e))) {
           await _drop(op, result, _describe(e));
           continue;
         }
@@ -146,6 +146,8 @@ class SyncEngine {
   /// takılırsa sunucudaki diğer aktif oturumlar (ör. başka telefonda açık kalmış, henüz
   /// çekilmemiş) `abandoned` yapılır ve işlem bir kez yeniden denenir. Yeniden deneme de
   /// başarısızsa hata olağan yoldan (kalıcı/geçici) işlenir. Yerel kopya sonraki çekmede eşitlenir.
+  /// Kurtarmanın kendisi (diğer oturumları kapatma) başarısız olursa (ör. saat kayması, 23514)
+  /// işlem kalıcı hata sayılmaz: bırakılırsa yerel antrenman silinirdi. Geçici sayılır, kalır.
   Future<void> _sendRecovering(OutboxOp op) async {
     try {
       await _send(op);
@@ -159,11 +161,15 @@ class SyncEngine {
           id is! String) {
         rethrow;
       }
-      await _remote.abandonOtherActiveSessions(
-        userId: userId,
-        keepId: id,
-        endedAt: _clock().toUtc().toIso8601String(),
-      );
+      try {
+        await _remote.abandonOtherActiveSessions(
+          userId: userId,
+          keepId: id,
+          endedAt: _clock().toUtc().toIso8601String(),
+        );
+      } catch (abandonError) {
+        throw _RecoveryFailed(abandonError);
+      }
       await _send(op);
     }
   }
@@ -393,6 +399,16 @@ class SyncEngine {
 
   Future<void> _deleteCursor(String name) =>
       (_db.delete(_db.syncCursors)..where((t) => t.targetTable.equals(name))).go();
+}
+
+/// Tek aktif oturum kurtarması başarısız: hata kodu ne olursa olsun geçici sayılır.
+class _RecoveryFailed implements Exception {
+  _RecoveryFailed(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => 'diğer aktif oturumlar kapatılamadı: $cause';
 }
 
 class _UnsupportedOp implements Exception {

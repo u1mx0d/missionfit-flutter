@@ -364,4 +364,13 @@ void main() {
       });
     }
   });
+
+  test('packFramePixels: ışık × alfa, kimlik, sis eşiği, 4 bit kimlik', () {
+    // 3 piksel: bölge 1 (alfa 255), bölge 14 (alfa 100 → boş), boş 15.
+    final shade = Uint8List.fromList([200, 0, 0, 255, 90, 0, 0, 100, 0, 0, 0, 0]);
+    final id = Uint8List.fromList([17, 0, 0, 255, 238, 0, 0, 255, 255, 0, 0, 255]);
+    final (packed, nibbles) = packFramePixels(shade, id, 3);
+    expect(packed, [200, 17, 255, 255, 0, 238, 0, 255, 0, 255, 0, 255]);
+    expect(nibbles, [1 | 14 << 4, 15]);
+  });
 }
