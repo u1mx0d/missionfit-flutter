@@ -83,3 +83,10 @@ Modüller aynı kalıyor:
 - Push: kullanıcı onay verdi. Her görevin incelemesi temiz çıkınca controller push'lar (alt ajanların push'u izin denetimine takılıyor).
 - Blender 5.2.4 LTS taşınabilir: `~/.local/opt/blender/blender` (pacman veritabanı eski, `sudo pacman -Syu` kullanıcıya kaldı). MPFB eklentisi kurulu.
 - Önizleme görselleri: `.superpowers/sdd/2026-11-19-asama-2a-antrenman/preview/`.
+
+## 2026-11-20 akşam: Aşama 2b tasarımı kaydedildi (KALDIĞIN YER)
+- Aşama 2a tamam (son kod `11ba64b`). Çıkışta veri kaybı düzeltildi (`dae5446`).
+- **Aşama 2b tasarımı:** `docs/superpowers/specs/2026-11-20-asama-2b-akilli-antrenman-design.md` (öneri kuralı, rekor, dinlenme motivasyonu; geçmişten anlık hesaplama, şema değişmez). Kullanıcı: "tasarımdan sonra bir şey yapmayacağız". Sıradaki adım istenirse superpowers:writing-plans.
+- **Açık hata:** antrenman bitirince özet ekranına geçişte donma (ANR), yeniden üretilemedi. Bir sonraki donmada telefon bağlıyken debug VM service'e bağlanıp Dart yığını alınacak.
+- Google girişi çıkıştan 1-2 dk sonra başarısız oluyordu; yeniden üretilemedi. Hata ayrıntısı artık logcat'te `Auth hatası`.
+- APK: `flutter build apk --debug --dart-define-from-file=env.json` (env.json unutulursa splash'te takılır).
